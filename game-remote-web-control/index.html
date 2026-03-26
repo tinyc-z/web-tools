@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Game Control Panel</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;600;700;900&family=Inter:wght@300;400;500;600&family=Noto+Sans+Arabic:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Background animated grid -->
+    <div class="bg-grid"></div>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <div class="logo-icon">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polygon points="12 2 22 8.5 22 15.5 12 22 2 15.5 2 8.5 12 2"/>
+                        <line x1="12" y1="22" x2="12" y2="15.5"/>
+                        <polyline points="22 8.5 12 15.5 2 8.5"/>
+                        <polyline points="2 15.5 12 8.5 22 15.5"/>
+                        <line x1="12" y1="2" x2="12" y2="8.5"/>
+                    </svg>
+                </div>
+                <div>
+                    <h1 class="header-title">GAME CONTROL</h1>
+                    <span class="header-subtitle">LAN Control Panel</span>
+                </div>
+            </div>
+            <div class="header-right">
+                <button class="icon-btn" id="btnSettings" title="服务器设置">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+                    </svg>
+                </button>
+            </div>
+        </header>
+
+        <!-- Server Tabs -->
+        <div class="server-tabs" id="serverTabs"></div>
+
+        <!-- No Server Placeholder -->
+        <div class="empty-state" id="emptyState" style="display:none;">
+            <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" style="color:var(--text-muted)">
+                <rect x="2" y="2" width="20" height="8" rx="2" ry="2"/>
+                <rect x="2" y="14" width="20" height="8" rx="2" ry="2"/>
+                <line x1="6" y1="6" x2="6.01" y2="6"/>
+                <line x1="6" y1="18" x2="6.01" y2="18"/>
+            </svg>
+            <p data-i18n="emptyTitle">尚未配置游戏服务器</p>
+            <p class="empty-hint" data-i18n="emptyHint">点击右上角 ⚙ 添加服务器</p>
+        </div>
+
+        <!-- Main Content -->
+        <div id="mainContent" style="display:none;">
+            <!-- Status Cards -->
+            <section class="status-section">
+                <div class="card status-card">
+                    <div class="card-header">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/>
+                            <line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                        </svg>
+                        <span data-i18n="gameStatus">游戏状态</span>
+                    </div>
+                    <div class="status-display">
+                        <div class="status-indicator" id="statusIndicator">
+                            <div class="status-glow" id="statusGlow"></div>
+                        </div>
+                        <div class="status-info">
+                            <span class="status-label" id="statusLabel">--</span>
+                            <span class="status-detail" id="statusDetail">--</span>
+                        </div>
+                    </div>
+                </div>
+                <div class="card service-card">
+                    <div class="card-header">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                        </svg>
+                        <span data-i18n="serviceStatus">服务状态</span>
+                    </div>
+                    <div class="service-info">
+                        <div class="service-row"><span class="service-key">Version</span><span class="service-value" id="serviceVersion">--</span></div>
+                        <div class="service-row"><span class="service-key">State</span><span class="service-value" id="serviceState">--</span></div>
+                        <div class="service-row issues-row" id="issuesRow">
+                            <span class="service-key">Issues</span>
+                            <span class="service-value issues-toggle" id="serviceIssues">--</span>
+                        </div>
+                    </div>
+                    <div class="issues-panel" id="issuesPanel"></div>
+                </div>
+            </section>
+
+            <!-- Game Control -->
+            <section class="control-section">
+                <div class="card control-card">
+                    <div class="card-header">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/>
+                            <line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/>
+                            <line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/>
+                            <line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>
+                        </svg>
+                        <span data-i18n="gameControl">游戏控制</span>
+                    </div>
+                    <div class="control-form">
+                        <div class="form-group">
+                            <label class="form-label" data-i18n="selectGame">选择游戏</label>
+                            <div class="select-wrapper">
+                                <select id="gameSelect" class="form-select" disabled><option value="" data-i18n="loading">加载中...</option></select>
+                                <svg class="select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" data-i18n="selectLevel">选择关卡</label>
+                            <div class="select-wrapper">
+                                <select id="levelSelect" class="form-select" disabled><option value="" data-i18n="selectGameFirst">请先选择游戏</option></select>
+                                <svg class="select-arrow" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                            </div>
+                        </div>
+                        <div class="form-group">
+                            <label class="form-label" data-i18n="gameDuration">游戏总时长（秒）</label>
+                            <input type="number" id="timeInput" class="form-input" value="300" min="30" max="9999">
+                        </div>
+                        <div class="button-group">
+                            <button class="btn btn-start" id="btnStart" disabled>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                                <span data-i18n="startGame">启动游戏</span>
+                            </button>
+                            <button class="btn btn-stop" id="btnStop" disabled>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                                <span data-i18n="stopGame">停止游戏</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Log Section -->
+            <section class="log-section">
+                <div class="card log-card">
+                    <div class="card-header">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                            <polyline points="14 2 14 8 20 8"/>
+                            <line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/>
+                        </svg>
+                        <span data-i18n="logs">操作日志</span>
+                        <button class="log-clear-btn" id="btnClearLog" data-i18n="clear">清除</button>
+                    </div>
+                    <div class="log-container" id="logContainer">
+                        <div class="log-empty" data-i18n="noLogs">暂无日志</div>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Settings Modal -->
+    <div class="modal-overlay" id="settingsModal">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 data-i18n="serverConfig">服务器配置</h2>
+                <button class="modal-close" id="btnCloseModal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <p class="modal-hint" data-i18n="serverConfigHint">配置要控制的游戏服务器地址（将保存在浏览器本地）</p>
+                <div id="serverList" class="server-list"></div>
+                <div class="add-server-form">
+                    <input type="text" id="newServerName" class="form-input" data-i18n-placeholder="serverNamePlaceholder" placeholder="名称，如：CyCoolThrow">
+                    <input type="text" id="newServerUrl" class="form-input" data-i18n-placeholder="serverUrlPlaceholder" placeholder="地址，如：http://192.168.1.100:12345">
+                    <button class="btn btn-add" id="btnAddServer">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        <span data-i18n="add">添加</span>
+                    </button>
+                </div>
+                <div class="setting-divider"></div>
+                <div class="setting-row">
+                    <span class="setting-label" data-i18n="language">语言 / Language</span>
+                    <div class="lang-switcher" id="langSwitcher">
+                        <button class="lang-btn active" data-lang="zh">中</button>
+                        <button class="lang-btn" data-lang="en">EN</button>
+                        <button class="lang-btn" data-lang="ar">ع</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
