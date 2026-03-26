@@ -664,12 +664,49 @@
     }
 
     // ===== Init =====
+    // ===== URL Parameter Auto-Config =====
+    function applyUrlParams() {
+        const params = new URLSearchParams(window.location.search);
+        const name = (params.get('name') || '').trim();
+        let url = (params.get('url') || '').trim();
+        if (!name || !url) return null;
+
+        // Auto-prefix http:// if missing
+        if (!/^https?:\/\//i.test(url)) url = 'http://' + url;
+        url = url.replace(/\/+$/, '');
+
+        // Validate URL
+        try {
+            const parsed = new URL(url);
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return null;
+        } catch { return null; }
+
+        // Clean query string from address bar
+        const cleanUrl = window.location.pathname + window.location.hash;
+        history.replaceState(null, '', cleanUrl || '.');
+
+        // Check duplicate by normalized URL
+        const exists = servers.find(s => s.url.replace(/\/+$/, '') === url);
+        if (exists) return exists.id;
+
+        // Add new server
+        const srv = { id: genId(), name, url };
+        servers.push(srv);
+        saveServers();
+        return srv.id;
+    }
+
     function init() {
         loadServers();
+        const urlServerId = applyUrlParams();
         bindEvents();
         applyI18n();
         renderServerTabs();
-        if (servers.length > 0) switchServer(servers[0].id);
+        if (urlServerId) {
+            switchServer(urlServerId);
+        } else if (servers.length > 0) {
+            switchServer(servers[0].id);
+        }
     }
 
     if (document.readyState === 'loading') {
