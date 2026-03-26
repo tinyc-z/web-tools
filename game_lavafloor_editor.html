@@ -1,0 +1,2072 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title t-key="editor-title">Obstacles Editor</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', 'PingFang SC', sans-serif;
+            background: #1a1a2e;
+            color: #e0e0e0;
+            height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* ── Left Panel: Canvas ── */
+        .canvas-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 12px;
+            min-width: 0;
+        }
+        .canvas-toolbar {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .canvas-toolbar button, .canvas-toolbar select {
+            padding: 6px 14px;
+            border: 1px solid #444;
+            border-radius: 6px;
+            background: #2a2a4a;
+            color: #e0e0e0;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        .canvas-toolbar button:hover, .canvas-toolbar select:hover {
+            background: #3a3a6a;
+        }
+        .canvas-toolbar .sep {
+            width: 1px;
+            height: 24px;
+            background: #444;
+        }
+        .canvas-wrapper {
+            flex: 1;
+            position: relative;
+            border: 2px solid #333;
+            border-radius: 8px;
+            overflow: hidden;
+            background: #0f0f1e;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        /* ── Right Panel ── */
+        .side-panel {
+            width: 300px;
+            background: #16162b;
+            border-left: 1px solid #333;
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+        .panel-section {
+            padding: 14px;
+            border-bottom: 1px solid #2a2a4a;
+        }
+        .panel-section h3 {
+            font-size: 13px;
+            color: #8888cc;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        /* Form controls */
+        .field-row {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+        .field-row label {
+            font-size: 12px;
+            color: #999;
+            min-width: 90px;
+            flex-shrink: 0;
+        }
+        .field-row input, .field-row select {
+            flex: 1;
+            padding: 5px 8px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: #222244;
+            color: #e0e0e0;
+            font-size: 12px;
+        }
+        .field-row input:focus, .field-row select:focus {
+            outline: none;
+            border-color: #6666cc;
+        }
+
+        /* Group buttons */
+        .group-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 6px;
+        }
+        .group-btn {
+            min-width: 32px;
+            padding: 4px 8px;
+            border: 1px solid #555;
+            border-radius: 4px;
+            background: #2a2a4a;
+            color: #e0e0e0;
+            cursor: pointer;
+            font-size: 12px;
+            text-align: center;
+            transition: all 0.15s;
+        }
+        .group-btn:hover { background: #3a3a6a; }
+        .group-btn.active {
+            border-color: #88f;
+            background: #4444aa;
+        }
+
+        /* Block list */
+        .block-list {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 12px;
+        }
+        .block-list-item {
+            padding: 4px 8px;
+            cursor: pointer;
+            border-radius: 3px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            transition: background 0.1s;
+        }
+        .block-list-item:hover { background: #2a2a4a; }
+        .block-list-item.selected { background: #3a3a6a; border: 1px solid #6666cc; }
+        .block-list-item .color-dot {
+            width: 10px; height: 10px;
+            border-radius: 2px;
+            flex-shrink: 0;
+        }
+
+        /* JSON area */
+        .json-area {
+            width: 100%;
+            min-height: 120px;
+            padding: 8px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: #111133;
+            color: #aaffaa;
+            font-family: 'Fira Code', 'Menlo', monospace;
+            font-size: 11px;
+            resize: vertical;
+        }
+        .btn-row {
+            display: flex;
+            gap: 6px;
+            margin-top: 8px;
+        }
+        .btn-row button {
+            flex: 1;
+            padding: 6px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: #2a2a4a;
+            color: #e0e0e0;
+            cursor: pointer;
+            font-size: 12px;
+            transition: background 0.2s;
+        }
+        .btn-row button:hover { background: #3a3a6a; }
+        .btn-row button.primary {
+            background: #4444aa;
+            border-color: #6666cc;
+        }
+        .btn-row button.primary:hover {
+            background: #5555cc;
+        }
+        .btn-row button.danger {
+            background: #662222;
+            border-color: #993333;
+        }
+        .btn-row button.danger:hover { background: #883333; }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%) translateY(60px);
+            background: #4444aa;
+            color: #fff;
+            padding: 10px 24px;
+            border-radius: 8px;
+            font-size: 13px;
+            opacity: 0;
+            transition: all 0.3s;
+            pointer-events: none;
+            z-index: 999;
+        }
+        .toast.show {
+            opacity: 1;
+            transform: translateX(-50%) translateY(0);
+        }
+
+        /* Info text */
+        .info-text {
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        /* Reactive Event Mode button */
+        .canvas-toolbar button.event-mode-btn {
+            background: #2a2a4a;
+            border-color: #555;
+            transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
+        }
+        .canvas-toolbar button.event-mode-btn.active {
+            background: #6a2020;
+            border-color: #ff6060;
+            color: #ff9999;
+            box-shadow: 0 0 8px rgba(255, 80, 80, 0.5);
+        }
+        /* Fullscreen button */
+        .canvas-toolbar button.fullscreen-btn {
+            margin-left: auto;
+        }
+        /* Ripple overlay on canvas in event mode */
+        .canvas-wrapper.event-mode {
+            border-color: rgba(255, 80, 80, 0.5);
+            box-shadow: 0 0 16px rgba(255, 60, 60, 0.25) inset;
+        }
+
+        /* Fullscreen: hide side panel, maximise canvas */
+        body.fullscreen-mode .side-panel {
+            display: none;
+        }
+        body.fullscreen-mode .canvas-panel {
+            padding: 0;
+        }
+        body.fullscreen-mode .canvas-toolbar {
+            display: none;
+        }
+        body.fullscreen-mode .stats-bar {
+            display: none;
+        }
+        body.fullscreen-mode .canvas-wrapper {
+            border: none;
+            border-radius: 0;
+        }
+        /* Floating exit button in fullscreen */
+        .fullscreen-exit-float {
+            display: none;
+            position: fixed;
+            top: 12px;
+            left: 12px;
+            z-index: 1000;
+            width: 28px;
+            height: 28px;
+            padding: 0;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 50%;
+            background: rgba(30,30,50,0.6);
+            color: #aaa;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 28px;
+            text-align: center;
+            backdrop-filter: blur(8px);
+            transition: opacity 0.3s, background 0.2s;
+            opacity: 0.4;
+        }
+        .fullscreen-exit-float:hover {
+            opacity: 1;
+            background: rgba(80,30,30,0.9);
+            color: #fff;
+        }
+        body.fullscreen-mode .fullscreen-exit-float {
+            display: block;
+        }
+        /* Floating controls panel in fullscreen */
+        .fullscreen-controls {
+            display: none;
+            position: fixed;
+            top: 48px;
+            left: 12px;
+            z-index: 1000;
+            padding: 8px 14px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            background: rgba(30,30,50,0.8);
+            color: #ccc;
+            font-size: 12px;
+            backdrop-filter: blur(8px);
+            opacity: 0.6;
+            transition: opacity 0.3s;
+            user-select: none;
+        }
+        .fullscreen-controls:hover { opacity: 1; }
+        .fullscreen-controls label { cursor: pointer; display: flex; align-items: center; gap: 6px; }
+        body.fullscreen-mode .fullscreen-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        /* Collapsible */
+        .collapse-toggle {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            color: #8888cc;
+            padding: 6px 0;
+            user-select: none;
+            transition: color 0.2s;
+        }
+        .collapse-toggle:hover { color: #aaaaee; }
+        .collapse-toggle .arrow {
+            display: inline-block;
+            transition: transform 0.2s;
+            font-size: 10px;
+        }
+        .collapse-toggle.open .arrow { transform: rotate(90deg); }
+        .collapse-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease;
+        }
+        .collapse-content.open {
+            max-height: 600px;
+        }
+
+        /* Stats bar */
+        .stats-bar {
+            font-size: 11px;
+            color: #888;
+            padding: 6px 12px;
+            display: flex;
+            gap: 16px;
+        }
+        /* Confirm Modal */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.6);
+            z-index: 2000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(4px);
+        }
+        .modal-box {
+            background: #1e1e2e;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 12px;
+            padding: 24px 28px;
+            max-width: 420px;
+            text-align: center;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        }
+        .modal-box h3 { color: #ffcc00; margin-bottom: 12px; font-size: 16px; }
+        .modal-box p { color: #ccc; font-size: 13px; line-height: 1.6; margin-bottom: 20px; }
+        .modal-btns { display: flex; gap: 12px; justify-content: center; }
+        .modal-btns button {
+            padding: 8px 20px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.2);
+            background: #2a2a3e;
+            color: #e0e0e0;
+            cursor: pointer;
+            font-size: 13px;
+            transition: background 0.2s;
+        }
+        .modal-btns button:hover { background: #3a3a5e; }
+        .modal-btns button.danger { background: #8b2020; border-color: #cc3333; }
+        .modal-btns button.danger:hover { background: #aa3030; }
+    </style>
+</head>
+<body>
+
+<!-- Left: Canvas -->
+<div class="canvas-panel">
+    <div class="canvas-toolbar">
+        <button id="btnAdd" t-key="editor-add" title="Add Block">➕ Add</button>
+        <button id="btnDelete" t-key="editor-delete" title="Delete selected" class="danger">🗑 Delete</button>
+        <div class="sep"></div>
+        <select id="presetSelect">
+            <option value="" t-key="editor-preset">-- Preset Layout --</option>
+            <option value="default" t-key="editor-preset-default">Default Layout</option>
+            <option value="corners4" t-key="editor-preset-corners4">Simple (8)</option>
+            <option value="edges" t-key="editor-preset-edges">Standard (12)</option>
+            <option value="diamond" t-key="editor-preset-diamond">Full (16)</option>
+            <option value="circle8" t-key="editor-preset-circle8">Circle (8)</option>
+            <option value="circle12" t-key="editor-preset-circle12">Circle (12)</option>
+        </select>
+        <div class="sep"></div>
+        <button id="btnUndo" t-key="editor-undo" title="Undo">↩ Undo</button>
+        <button id="btnRotate90" t-key="editor-rotate90" title="Rotate 90°">🔄 Rotate 90°</button>
+        <div class="sep"></div>
+        <label style="font-size:12px;color:#888;" t-key="editor-snap">Grid Snap</label>
+        <input type="checkbox" id="snapToggle" checked style="accent-color:#6666cc;">
+        <div class="sep"></div>
+        <button id="btnEventMode" class="event-mode-btn" t-key="editor-event-mode" title="Toggle event mode">🎮 Event Mode</button>
+        <button id="btnFullscreen" class="fullscreen-btn" t-key="editor-fullscreen" title="Fullscreen">⛶ Fullscreen</button>
+    </div>
+    <div class="canvas-wrapper">
+        <canvas id="editorCanvas"></canvas>
+    </div>
+    <button class="fullscreen-exit-float" id="btnFullscreenExit" title="退出全屏 (ESC)">×</button>
+    <div class="fullscreen-controls">
+        <label><input type="checkbox" id="previewGridToggle" checked style="accent-color:#888;"> <span t-key="editor-grid">Grid</span></label>
+        <label><input type="checkbox" id="previewDebugToggle" checked style="accent-color:#ffff00;"> <span t-key="editor-debug-borders">Debug Borders</span></label>
+        <label><input type="checkbox" id="previewEventToggle" style="accent-color:#ff6666;"> <span t-key="editor-event-mode">🎮 Event Mode</span></label>
+    </div>
+    <div class="stats-bar">
+        <span id="statBlocks">Blocks: 0</span>
+        <span id="statGroups">Groups: 0</span>
+        <span id="statSelected">Selected: —</span>
+    </div>
+</div>
+
+<!-- Right: Panel -->
+<div class="side-panel">
+    <!-- System Config -->
+    <div class="panel-section">
+        <h3 t-key="editor-sys-config">📐 System Config</h3>
+        <div class="field-row">
+            <label>gameWidth</label>
+            <input type="number" id="cfgWidth" value="960">
+        </div>
+        <div class="field-row">
+            <label>gameHeight</label>
+            <input type="number" id="cfgHeight" value="960">
+        </div>
+        <div class="field-row">
+            <label>obstacleW</label>
+            <input type="number" id="cfgObstW" value="30">
+        </div>
+        <div class="collapse-toggle" id="cfgToggle">
+            <span class="arrow">▶</span> <span t-key="editor-more-params">More Parameters</span>
+        </div>
+        <div class="collapse-content" id="cfgMore">
+            <div class="field-row">
+                <label>paddingTop</label>
+                <input type="number" id="cfgPaddingTop" value="10">
+            </div>
+            <div class="field-row">
+                <label>paddingBottom</label>
+                <input type="number" id="cfgPaddingBottom" value="10">
+            </div>
+            <div class="field-row">
+                <label>offsetX</label>
+                <input type="number" id="cfgOffsetX" value="0">
+            </div>
+            <div class="field-row">
+                <label>meterScale</label>
+                <input type="number" id="cfgMeterScale" value="3.88" step="0.01">
+            </div>
+            <div class="field-row">
+                <label>obstacleScale</label>
+                <input type="number" id="cfgObstacleScale" value="0.98" step="0.01">
+            </div>
+            <div class="field-row">
+                <label>contentPadding</label>
+                <input type="number" id="cfgContentPadding" value="20">
+            </div>
+            <div class="field-row">
+                <label>contentPadOfsX</label>
+                <input type="number" id="cfgContentPaddingOffsetX" value="0">
+            </div>
+            <div class="field-row">
+                <label>contentPadOfsY</label>
+                <input type="number" id="cfgContentPaddingOffsetY" value="0">
+            </div>
+            <div class="field-row">
+                <label>monstersAreaW</label>
+                <input type="number" id="cfgMonstersAreaWidth" value="160">
+            </div>
+            <div class="field-row">
+                <label>monstersAreaH</label>
+                <input type="number" id="cfgMonstersAreaHeight" value="160">
+            </div>
+            <div class="field-row">
+                <label>monstersOfsX</label>
+                <input type="number" id="cfgMonstersAreaOffsetX" value="40">
+            </div>
+            <div class="field-row">
+                <label>gameScreen</label>
+                <input type="number" id="cfgGameScreen" value="1" min="1">
+            </div>
+            <div class="field-row">
+                <label>scoreScreen</label>
+                <input type="number" id="cfgScoreScreen" value="2" min="1">
+            </div>
+            <div class="field-row">
+                <label>uiRotation</label>
+                <input type="number" id="cfgUiRotation" value="0">
+            </div>
+        </div>
+    </div>
+
+    <!-- Selected Block -->
+    <div class="panel-section" id="selectedPanel" style="display:none;">
+        <h3 t-key="editor-selected-block">🔧 Selected Block</h3>
+        <div class="field-row">
+            <label>Index</label>
+            <input type="text" id="selIndex" readonly style="background:#1a1a2e;">
+        </div>
+        <div class="field-row">
+            <label>X (px)</label>
+            <input type="number" id="selX" step="1">
+        </div>
+        <div class="field-row">
+            <label>Y (px)</label>
+            <input type="number" id="selY" step="1">
+        </div>
+        <div class="field-row">
+            <label>Group</label>
+            <input type="text" id="selGroup" placeholder="A">
+        </div>
+        <div class="field-row">
+            <label>bidx</label>
+            <input type="number" id="selBidx" step="1" min="0">
+        </div>
+        <div style="margin-top:6px;">
+            <label style="font-size:12px;color:#999;" t-key="editor-quick-group">Quick Set Group:</label>
+            <div class="group-buttons" id="quickGroups"></div>
+        </div>
+    </div>
+
+    <!-- Block List -->
+    <div class="panel-section">
+        <h3 t-key="editor-block-list">📋 Block List</h3>
+        <div class="block-list" id="blockList"></div>
+    </div>
+
+    <!-- JSON Import / Export -->
+    <div class="panel-section" style="flex:1;">
+        <h3 t-key="editor-json-io">📦 JSON Import/Export</h3>
+        <textarea class="json-area" id="jsonArea" placeholder='Paste systemConfig JSON...'></textarea>
+        <div class="btn-row">
+            <button id="btnImport" t-key="editor-import">📥 Import</button>
+            <button id="btnExport" class="primary" t-key="editor-export">📤 Export</button>
+        </div>
+        <div class="btn-row" style="margin-top:4px;">
+            <button id="btnCopy" class="primary" t-key="editor-copy">📋 Copy to Clipboard</button>
+        </div>
+        <div class="btn-row" id="applyToGameRow" style="margin-top:8px; display:none;">
+            <button id="btnApplyToGame" class="danger" t-key="editor-apply-game">⚠️ Apply to Game</button>
+        </div>
+        <p class="info-text" t-key="editor-json-hint">Import/Export full systemConfig (with obstacles)</p>
+    </div>
+</div>
+
+<!-- Confirm Modal -->
+<div class="modal-overlay" id="confirmModal" style="display:none;">
+    <div class="modal-box">
+        <h3 t-key="editor-apply-warn-title">⚠️ Warning</h3>
+        <p t-key="editor-apply-warn-msg">This will overwrite the current game configuration. The game must be restarted to take effect. Continue?</p>
+        <div class="modal-btns">
+            <button id="modalCancel" t-key="common_cancel">Cancel</button>
+            <button id="modalConfirm" class="danger" t-key="editor-apply-confirm">Confirm Apply</button>
+        </div>
+    </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════
+// i18n (inlined for standalone use without dependencies)
+// ═══════════════════════════════════════════════
+window.translations = {};
+window.appConfigs = { locale: 'en' };
+window._pendingSystemConfig = null;
+
+function getTranslation(translations, key, lang, defaultValue) {
+    if (translations[lang] && translations[lang][key]) return translations[lang][key];
+    if (translations["en"] && translations["en"][key]) return translations["en"][key];
+    return defaultValue;
+}
+function tt(key, defaultValue) {
+    return getTranslation(translations, key, appConfigs.locale, defaultValue);
+}
+function translateElements() {
+    document.querySelectorAll('[t-key]').forEach(el => {
+        const key = el.getAttribute('t-key');
+        el.textContent = tt(key, el.textContent);
+    });
+}
+
+// Load translations & config from Electron (skipped in standalone browser)
+if (window.electronAPI) {
+    document.getElementById('applyToGameRow').style.display = '';
+    Promise.all([
+        window.electronAPI.getTranslations(),
+        window.electronAPI.getConfig()
+    ]).then(([t, c]) => {
+        window.translations = t || {};
+        window.appConfigs = c || { locale: 'en' };
+        translateElements();
+        if (c && c.systemConfigParsed) {
+            window._pendingSystemConfig = c.systemConfigParsed;
+        }
+        if (typeof autoLoadConfig === 'function') {
+            autoLoadConfig();
+        }
+    });
+}
+</script>
+<script>
+// ═══════════════════════════════════════════════
+// Configuration & State
+// ═══════════════════════════════════════════════
+
+const GROUP_COLORS = [
+    '#FFD740', '#66BB6A', '#AB47BC', '#EC407A',
+    '#D4E157', '#26C6DA', '#78909C', '#FF7043',
+    '#8D6E63', '#7E57C2', '#26A69A', '#EF5350'
+];
+
+const DEFAULT_GROUPS = ['A','B','C','D','E','F','G','H'];
+
+let state = {
+    blocks: [],        // [{x, y, group, bidx}] — pixel positions
+    selectedIdxs: [],
+    // System config fields
+    gameWidth: 960,
+    gameHeight: 960,
+    obstacleW: 30,
+    paddingTop: 10,
+    paddingBottom: 10,
+    offsetX: 0,
+    meterScale: 3.88,
+    obstacleScale: 0.98,
+    contentPadding: 20,
+    contentPaddingOffsetX: 0,
+    contentPaddingOffsetY: 0,
+    monstersAreaWidth: 160,
+    monstersAreaHeight: 160,
+    monstersAreaOffsetX: 40,
+    gameScreen: 1,
+    scoreScreen: 2,
+    uiRotation: 0,
+    // Editor state
+    snapEnabled: true,
+    gridSize: 10,
+    undoStack: [],
+};
+
+// ═══════════════════════════════════════════════
+// Canvas Setup
+// ═══════════════════════════════════════════════
+
+const canvas = document.getElementById('editorCanvas');
+const ctx = canvas.getContext('2d');
+let canvasScale = 1; // game pixels → screen pixels
+let canvasOffsetX = 0, canvasOffsetY = 0;
+
+let isGamePreviewMode = false;
+let showPreviewGrid = true;
+let showPreviewDebug = true;
+
+function resizeCanvas() {
+    const wrapper = canvas.parentElement;
+    canvas.width = wrapper.clientWidth;
+    canvas.height = wrapper.clientHeight;
+
+    if (isGamePreviewMode) {
+        // Game-preview mode: match the game's Scale.FIT behavior
+        // Game uses: containerH = screenH - paddingTop - paddingBottom
+        // Then fits gameWidth x gameHeight inside that container, centered with offsetX
+        const paddingTop = state.paddingTop || 0;
+        const paddingBottom = state.paddingBottom || 0;
+        const offsetX = state.offsetX || 0;
+
+        const availW = canvas.width;
+        const availH = canvas.height - paddingTop - paddingBottom;
+
+        const scaleX = availW / state.gameWidth;
+        const scaleY = availH / state.gameHeight;
+        canvasScale = Math.min(scaleX, scaleY);
+
+        const gameRenderedW = state.gameWidth * canvasScale;
+        const gameRenderedH = state.gameHeight * canvasScale;
+
+        canvasOffsetX = (availW - gameRenderedW) / 2 + offsetX;
+        canvasOffsetY = paddingTop + (availH - gameRenderedH) / 2;
+    } else {
+        // Normal editor mode
+        const pad = 20;
+        const scaleX = (canvas.width - pad * 2) / state.gameWidth;
+        const scaleY = (canvas.height - pad * 2) / state.gameHeight;
+        canvasScale = Math.min(scaleX, scaleY);
+        canvasOffsetX = (canvas.width - state.gameWidth * canvasScale) / 2;
+        canvasOffsetY = (canvas.height - state.gameHeight * canvasScale) / 2;
+    }
+
+    render();
+}
+
+window.addEventListener('resize', resizeCanvas);
+
+// ═══════════════════════════════════════════════
+// Coordinate Transforms
+// ═══════════════════════════════════════════════
+
+function gameToScreen(gx, gy) {
+    return [canvasOffsetX + gx * canvasScale, canvasOffsetY + gy * canvasScale];
+}
+
+function screenToGame(sx, sy) {
+    return [(sx - canvasOffsetX) / canvasScale, (sy - canvasOffsetY) / canvasScale];
+}
+
+function snapToGrid(val, maxVal, isX) {
+    if (!state.snapEnabled) return val;
+    const grid = getActualObstacleW();
+    
+    const candidates = [];
+    // 1. Base Forward Grid
+    candidates.push({ val: Math.round(val / grid) * grid, weight: 1 });
+    
+    // 2. Absolute boundaries
+    if (maxVal !== undefined) {
+        candidates.push({ val: maxVal - grid, weight: 1 }); // Exact edge
+        candidates.push({ val: maxVal / 2 - grid / 2, weight: 1 }); // Exact center
+    }
+    
+    // 3. Object-based anchors (Smart Guides) from unselected blocks
+    if (isX !== undefined) {
+        for (let i = 0; i < state.blocks.length; i++) {
+            if (state.selectedIdxs.includes(i)) continue;
+            const ref = isX ? state.blocks[i].x : state.blocks[i].y;
+            candidates.push({ val: ref, weight: 2 });
+            candidates.push({ val: ref - grid, weight: 2 });
+            candidates.push({ val: ref + grid, weight: 2 });
+        }
+    }
+    
+    // Find best candidate (weight reduces perceived distance)
+    let best = candidates[0];
+    let minScore = Math.abs(val - best.val) - best.weight * 10;
+    
+    for (let i = 1; i < candidates.length; i++) {
+        const score = Math.abs(val - candidates[i].val) - candidates[i].weight * 10;
+        if (score < minScore) {
+            minScore = score;
+            best = candidates[i];
+        }
+    }
+    
+    return best.val;
+}
+
+function getActualObstacleW() {
+    return state.obstacleW * state.meterScale * Math.abs(state.obstacleScale); // use abs just in case
+}
+
+// ═══════════════════════════════════════════════
+// Group Color Mapping
+// ═══════════════════════════════════════════════
+
+function getGroupColor(group) {
+    const groups = [...new Set(state.blocks.map(b => b.group))].sort();
+    const idx = groups.indexOf(group);
+    return GROUP_COLORS[idx >= 0 ? idx % GROUP_COLORS.length : 0];
+}
+
+function getGroupColorDirect(group) {
+    // stable color by hashing group name
+    let hash = 0;
+    for (let i = 0; i < group.length; i++) hash = (hash * 31 + group.charCodeAt(i)) | 0;
+    return GROUP_COLORS[Math.abs(hash) % GROUP_COLORS.length];
+}
+
+// ═══════════════════════════════════════════════
+// Rendering
+// ═══════════════════════════════════════════════
+
+function render() {
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Background
+    ctx.fillStyle = isGamePreviewMode ? '#000000' : '#0f0f1e';
+    ctx.fillRect(0, 0, w, h);
+
+    // Game area
+    const [ax, ay] = gameToScreen(0, 0);
+    const aw = state.gameWidth * canvasScale;
+    const ah = state.gameHeight * canvasScale;
+
+    // Fill game area
+    ctx.fillStyle = isGamePreviewMode ? '#000000' : '#1a1a2e';
+    ctx.fillRect(ax, ay, aw, ah);
+
+    if (isGamePreviewMode) {
+        // ── Fullscreen game-preview overlays ──
+        const lineSize = 2;
+
+        // Optional gray-white grid at obstacleW intervals
+        if (showPreviewGrid) {
+            ctx.strokeStyle = 'rgba(200,200,200,0.3)';
+            ctx.lineWidth = 1;
+            const gridGamePx = getActualObstacleW();
+            for (let gx = 0; gx <= state.gameWidth; gx += gridGamePx) {
+                const [sx] = gameToScreen(gx, 0);
+                ctx.beginPath(); ctx.moveTo(sx, ay); ctx.lineTo(sx, ay + ah); ctx.stroke();
+            }
+            for (let gy = 0; gy <= state.gameHeight; gy += gridGamePx) {
+                const [, sy] = gameToScreen(0, gy);
+                ctx.beginPath(); ctx.moveTo(ax, sy); ctx.lineTo(ax + aw, sy); ctx.stroke();
+            }
+        }
+
+        if (showPreviewDebug) {
+            // Red border: game area outer edge (matches drawDebugOutLayer)
+            ctx.strokeStyle = 'rgba(255,0,0,1)';
+            ctx.lineWidth = lineSize;
+            ctx.strokeRect(
+                ax + lineSize,
+                ay + lineSize,
+                aw - 2 * lineSize,
+                ah - 2 * lineSize
+            );
+
+            // Yellow border: contentPadding inset (matches drawDebugInLayer)
+            const cpx = (state.contentPadding + lineSize + (state.contentPaddingOffsetX || 0)) * canvasScale;
+            const cpy = (state.contentPadding + lineSize + (state.contentPaddingOffsetY || 0)) * canvasScale;
+            const cpw = aw - 2 * state.contentPadding * canvasScale - 2 * lineSize;
+            const cph = ah - 2 * state.contentPadding * canvasScale - 2 * lineSize;
+            ctx.strokeStyle = 'rgba(255,255,0,1)';
+            ctx.lineWidth = lineSize;
+            ctx.strokeRect(ax + cpx, ay + cpy, cpw, cph);
+
+            // Green border: monsters area (centered)
+            const maw = (state.monstersAreaWidth || 0) * canvasScale;
+            const mah = (state.monstersAreaHeight || 0) * canvasScale;
+            const maOffX = (state.monstersAreaOffsetX || 0) * canvasScale;
+            if (maw > 0 && mah > 0) {
+                const maCenterX = ax + aw / 2 + maOffX;
+                const maCenterY = ay + ah / 2;
+                ctx.strokeStyle = 'rgba(0,255,0,1)';
+                ctx.lineWidth = 1;
+                ctx.strokeRect(maCenterX - maw / 2, maCenterY - mah / 2, maw, mah);
+            }
+        }
+    } else {
+        // Grid lines (editor only)
+        ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+        ctx.lineWidth = 1;
+        const gridGamePx = getActualObstacleW();
+        for (let gx = 0; gx <= state.gameWidth; gx += gridGamePx) {
+            const [sx] = gameToScreen(gx, 0);
+            ctx.beginPath(); ctx.moveTo(sx, ay); ctx.lineTo(sx, ay + ah); ctx.stroke();
+        }
+        for (let gy = 0; gy <= state.gameHeight; gy += gridGamePx) {
+            const [, sy] = gameToScreen(0, gy);
+            ctx.beginPath(); ctx.moveTo(ax, sy); ctx.lineTo(ax + aw, sy); ctx.stroke();
+        }
+
+        // Game area border
+        ctx.strokeStyle = '#444';
+        ctx.lineWidth = 2;
+        ctx.strokeRect(ax, ay, aw, ah);
+
+        // Dimension labels
+        ctx.fillStyle = '#555';
+        ctx.font = '11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(`${state.gameWidth}px`, ax + aw / 2, ay - 6);
+        ctx.save();
+        ctx.translate(ax - 6, ay + ah / 2);
+        ctx.rotate(-Math.PI / 2);
+        ctx.fillText(`${state.gameHeight}px`, 0, 0);
+        ctx.restore();
+    }
+
+    // Blocks
+    const actualOw = getActualObstacleW();
+    const blockScreenW = actualOw * canvasScale;
+    for (let i = 0; i < state.blocks.length; i++) {
+        const b = state.blocks[i];
+        const [sx, sy] = gameToScreen(b.x, b.y);
+        const color = getGroupColor(b.group);
+
+        // Block fill
+        const isSel = state.selectedIdxs.includes(i);
+        ctx.fillStyle = color;
+        ctx.globalAlpha = isSel ? 1.0 : 0.75;
+        ctx.fillRect(sx, sy, blockScreenW, blockScreenW);
+
+        // Border
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = isSel ? '#fff' : 'rgba(0,0,0,0.5)';
+        ctx.lineWidth = isSel ? 2.5 : 1;
+        ctx.strokeRect(sx, sy, blockScreenW, blockScreenW);
+
+        // Label: index
+        ctx.fillStyle = '#000';
+        ctx.font = `bold ${Math.max(10, blockScreenW * 0.3)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${i}`, sx + blockScreenW / 2, sy + blockScreenW / 2 - blockScreenW * 0.12);
+
+        // Label: group + bidx
+        ctx.font = `${Math.max(8, blockScreenW * 0.18)}px sans-serif`;
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillText(`${b.group} | b${b.bidx}`, sx + blockScreenW / 2, sy + blockScreenW / 2 + blockScreenW * 0.2);
+    }
+
+    // Update stats
+    const groups = [...new Set(state.blocks.map(b => b.group))];
+    document.getElementById('statBlocks').textContent = `Blocks: ${state.blocks.length}`;
+    document.getElementById('statGroups').textContent = `Groups: ${groups.length} (${groups.sort().join(', ')})`;
+    document.getElementById('statSelected').textContent = state.selectedIdxs.length > 0 ? `Selected: ${state.selectedIdxs.length}` : 'Selected: —';
+}
+
+// ═══════════════════════════════════════════════
+// Reactive Event Mode
+// ═══════════════════════════════════════════════
+
+let eventMode = false;
+// activeEvents: Map<blockIdx, {startTime, duration}>
+const activeEvents = new Map();
+let animFrameId = null;
+
+function setEventMode(enabled) {
+    eventMode = enabled;
+    const btn = document.getElementById('btnEventMode');
+    const wrapper = canvas.parentElement;
+    const previewToggle = document.getElementById('previewEventToggle');
+    if (previewToggle) previewToggle.checked = enabled;
+    if (enabled) {
+        btn.classList.add('active');
+        btn.textContent = '🎮 响应事件模式 [ON]';
+        wrapper.classList.add('event-mode');
+        selectBlocks([]);
+        showToast('响应事件模式已开启 — 点击 Block 触发激活效果');
+        startEventAnimLoop();
+    } else {
+        btn.classList.remove('active');
+        btn.textContent = '🎮 响应事件模式';
+        wrapper.classList.remove('event-mode');
+        activeEvents.clear();
+        if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
+        showToast('响应事件模式已关闭');
+        render();
+    }
+}
+
+document.getElementById('btnEventMode').addEventListener('click', () => {
+    setEventMode(!eventMode);
+});
+
+function startEventAnimLoop() {
+    function loop() {
+        if (!eventMode) return;
+        renderEventMode();
+        animFrameId = requestAnimationFrame(loop);
+    }
+    if (animFrameId) cancelAnimationFrame(animFrameId);
+    animFrameId = requestAnimationFrame(loop);
+}
+
+function triggerBlockEvent(idx) {
+    activeEvents.set(idx, { startTime: performance.now(), duration: 600 });
+}
+
+// Hardware signal listener (same as test_page)
+if (window.electronAPI) {
+    window.electronAPI.receiveMessage('control.message', (message) => {
+        if (message.action === 'updateKeyStatus') {
+            // Auto-enable event mode on first hardware signal
+            if (!eventMode) {
+                setEventMode(true);
+            }
+            if (message.data === 'keydown') {
+                // Find block(s) matching the bidx and trigger event
+                for (let i = 0; i < state.blocks.length; i++) {
+                    if (state.blocks[i].bidx === message.key) {
+                        triggerBlockEvent(i);
+                    }
+                }
+            }
+        }
+    });
+}
+
+function renderEventMode() {
+    const now = performance.now();
+    const w = canvas.width, h = canvas.height;
+    ctx.clearRect(0, 0, w, h);
+
+    // Background
+    ctx.fillStyle = '#0f0f1e';
+    ctx.fillRect(0, 0, w, h);
+
+    // Game area
+    const [ax, ay] = gameToScreen(0, 0);
+    const aw = state.gameWidth * canvasScale;
+    const ah = state.gameHeight * canvasScale;
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(ax, ay, aw, ah);
+
+    // Grid lines (subtle)
+    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
+    ctx.lineWidth = 1;
+    const gridGamePx = getActualObstacleW();
+    for (let gx = 0; gx <= state.gameWidth; gx += gridGamePx) {
+        const [sx] = gameToScreen(gx, 0);
+        ctx.beginPath(); ctx.moveTo(sx, ay); ctx.lineTo(sx, ay + ah); ctx.stroke();
+    }
+    for (let gy = 0; gy <= state.gameHeight; gy += gridGamePx) {
+        const [, sy] = gameToScreen(0, gy);
+        ctx.beginPath(); ctx.moveTo(ax, sy); ctx.lineTo(ax + aw, sy); ctx.stroke();
+    }
+
+    ctx.strokeStyle = '#444';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(ax, ay, aw, ah);
+
+    const actualOw = getActualObstacleW();
+    const blockScreenW = actualOw * canvasScale;
+
+    for (let i = 0; i < state.blocks.length; i++) {
+        const b = state.blocks[i];
+        const [sx, sy] = gameToScreen(b.x, b.y);
+        const baseColor = getGroupColor(b.group);
+
+        const ev = activeEvents.get(i);
+        let t = 0; // 0 = idle, 1 = peak of activation
+        if (ev) {
+            const elapsed = now - ev.startTime;
+            if (elapsed >= ev.duration) {
+                activeEvents.delete(i);
+            } else {
+                // ease-out curve: rises fast then fades
+                const raw = elapsed / ev.duration;
+                t = Math.sin(raw * Math.PI); // 0→1→0 arc
+            }
+        }
+
+        // Scale the block for "pop" effect
+        const scale = 1 + t * 0.18;
+        const cx = sx + blockScreenW / 2;
+        const cyc = sy + blockScreenW / 2;
+        const sw = blockScreenW * scale;
+
+        ctx.save();
+        ctx.translate(cx, cyc);
+
+        // Glow
+        if (t > 0) {
+            ctx.shadowColor = baseColor;
+            ctx.shadowBlur = 24 * t;
+        }
+
+        // Fill
+        ctx.globalAlpha = 0.6 + t * 0.4;
+        ctx.fillStyle = t > 0 ? '#ffffff' : baseColor;
+        ctx.fillRect(-sw / 2, -sw / 2, sw, sw);
+
+        // Overlay color tint when active
+        if (t > 0) {
+            ctx.globalAlpha = t * 0.6;
+            ctx.fillStyle = baseColor;
+            ctx.fillRect(-sw / 2, -sw / 2, sw, sw);
+        }
+
+        ctx.globalAlpha = 1;
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = t > 0 ? '#ffffff' : 'rgba(0,0,0,0.5)';
+        ctx.lineWidth = t > 0 ? 2.5 : 1;
+        ctx.strokeRect(-sw / 2, -sw / 2, sw, sw);
+
+        // Label
+        ctx.fillStyle = t > 0.4 ? '#000' : '#000';
+        ctx.font = `bold ${Math.max(10, blockScreenW * 0.3)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(`${i}`, 0, -blockScreenW * 0.12);
+
+        ctx.font = `${Math.max(8, blockScreenW * 0.18)}px sans-serif`;
+        ctx.fillStyle = 'rgba(0,0,0,0.7)';
+        ctx.fillText(`${b.group}`, 0, blockScreenW * 0.2);
+
+        ctx.restore();
+
+        // Ripple ring
+        if (t > 0) {
+            const ringR = (blockScreenW / 2) * (1 + t * 1.2);
+            ctx.save();
+            ctx.globalAlpha = (1 - t) * 0.7;
+            ctx.strokeStyle = baseColor;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(cx, cyc, ringR, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
+    // Stats
+    const groups = [...new Set(state.blocks.map(b => b.group))];
+    document.getElementById('statBlocks').textContent = `Blocks: ${state.blocks.length}`;
+    document.getElementById('statGroups').textContent = `Groups: ${groups.length} (${groups.sort().join(', ')})`;
+    document.getElementById('statSelected').textContent = '🎮 响应事件模式';
+}
+
+// ═══════════════════════════════════════════════
+// Drag & Drop
+// ═══════════════════════════════════════════════
+
+let isDragging = false;
+let dragOffsets = [];
+
+canvas.addEventListener('mousedown', (e) => {
+    const rect = canvas.getBoundingClientRect();
+    const mx = e.clientX - rect.left;
+    const my = e.clientY - rect.top;
+    const [gx, gy] = screenToGame(mx, my);
+
+    // Hit test — reverse order so top block is selected first
+    let hit = -1;
+    const actualOw = getActualObstacleW();
+    for (let i = state.blocks.length - 1; i >= 0; i--) {
+        const b = state.blocks[i];
+        if (gx >= b.x && gx <= b.x + actualOw && gy >= b.y && gy <= b.y + actualOw) {
+            hit = i;
+            break;
+        }
+    }
+
+    if (hit >= 0) {
+        // In event mode: trigger the reactive animation instead of selecting
+        if (eventMode) {
+            triggerBlockEvent(hit);
+            return;
+        }
+        if (!state.selectedIdxs.includes(hit)) {
+            if (!e.shiftKey && !e.ctrlKey && !e.metaKey) selectBlocks([hit]);
+            else selectBlocks([...state.selectedIdxs, hit]);
+        } else if (e.shiftKey || e.ctrlKey || e.metaKey) {
+            selectBlocks(state.selectedIdxs.filter(id => id !== hit));
+            return;
+        }
+
+        isDragging = true;
+        dragOffsets = state.selectedIdxs.map(idx => ({
+            idx,
+            dx: gx - state.blocks[idx].x,
+            dy: gy - state.blocks[idx].y
+        }));
+        pushUndo();
+    } else {
+        if (!eventMode) selectBlocks([]);
+    }
+    render();
+});
+
+canvas.addEventListener('mousemove', (e) => {
+    if (!isDragging || state.selectedIdxs.length === 0) return;
+    const rect = canvas.getBoundingClientRect();
+    const [gx, gy] = screenToGame(e.clientX - rect.left, e.clientY - rect.top);
+
+    const actualOw = getActualObstacleW();
+    dragOffsets.forEach(({idx, dx, dy}) => {
+        let newX = snapToGrid(gx - dx, state.gameWidth, true);
+        let newY = snapToGrid(gy - dy, state.gameHeight, false);
+        newX = Math.max(0, Math.min(state.gameWidth - actualOw, newX));
+        newY = Math.max(0, Math.min(state.gameHeight - actualOw, newY));
+        state.blocks[idx].x = newX;
+        state.blocks[idx].y = newY;
+    });
+
+    updateSelectedPanel();
+    render();
+});
+
+canvas.addEventListener('mouseup', () => { isDragging = false; });
+canvas.addEventListener('mouseleave', () => { isDragging = false; });
+
+// ═══════════════════════════════════════════════
+// Selection & Panel
+// ═══════════════════════════════════════════════
+
+function selectBlocks(idxs) {
+    state.selectedIdxs = idxs;
+    const panel = document.getElementById('selectedPanel');
+    if (idxs.length > 0) {
+        panel.style.display = '';
+        updateSelectedPanel();
+    } else {
+        panel.style.display = 'none';
+    }
+    updateBlockList();
+}
+
+function updateSelectedPanel() {
+    if (state.selectedIdxs.length === 0) return;
+    
+    if (state.selectedIdxs.length === 1) {
+        const b = state.blocks[state.selectedIdxs[0]];
+        document.getElementById('selIndex').value = state.selectedIdxs[0];
+        document.getElementById('selX').value = Math.round(b.x);
+        document.getElementById('selY').value = Math.round(b.y);
+        document.getElementById('selX').disabled = false;
+        document.getElementById('selY').disabled = false;
+        document.getElementById('selGroup').value = b.group;
+        document.getElementById('selGroup').placeholder = 'A';
+        document.getElementById('selBidx').value = b.bidx;
+        document.getElementById('selBidx').disabled = false;
+    } else {
+        document.getElementById('selIndex').value = `${state.selectedIdxs.length} blocks`;
+        document.getElementById('selX').value = '';
+        document.getElementById('selY').value = '';
+        document.getElementById('selX').disabled = true;
+        document.getElementById('selY').disabled = true;
+        document.getElementById('selBidx').value = '';
+        document.getElementById('selBidx').disabled = true;
+
+        const firstGrp = state.blocks[state.selectedIdxs[0]].group;
+        const allSame = state.selectedIdxs.every(i => state.blocks[i].group === firstGrp);
+        document.getElementById('selGroup').value = allSame ? firstGrp : '';
+        document.getElementById('selGroup').placeholder = allSame ? '' : '(Mixed)';
+    }
+    updateQuickGroups();
+}
+
+function updateQuickGroups() {
+    const container = document.getElementById('quickGroups');
+    const existingGroups = [...new Set(state.blocks.map(b => b.group))].sort();
+    const allGroups = [...new Set([...DEFAULT_GROUPS.slice(0, 8), ...existingGroups])].sort();
+    
+    let currentGroup = '';
+    if (state.selectedIdxs.length === 1) currentGroup = state.blocks[state.selectedIdxs[0]].group;
+    else if (state.selectedIdxs.length > 1) {
+        const firstGrp = state.blocks[state.selectedIdxs[0]].group;
+        if (state.selectedIdxs.every(idx => state.blocks[idx].group === firstGrp)) {
+            currentGroup = firstGrp;
+        }
+    }
+
+    container.innerHTML = allGroups.map(g =>
+        `<button class="group-btn ${g === currentGroup ? 'active' : ''}" data-group="${g}" style="border-left: 3px solid ${getGroupColorDirect(g)}">${g}</button>`
+    ).join('');
+
+    container.querySelectorAll('.group-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            if (state.selectedIdxs.length > 0) {
+                pushUndo();
+                state.selectedIdxs.forEach(idx => state.blocks[idx].group = btn.dataset.group);
+                updateSelectedPanel();
+                render();
+            }
+        });
+    });
+}
+
+// Panel inputs → state
+document.getElementById('selX').addEventListener('change', (e) => {
+    if (state.selectedIdxs.length === 1) {
+        pushUndo();
+        state.blocks[state.selectedIdxs[0]].x = parseInt(e.target.value) || 0;
+        render();
+    }
+});
+document.getElementById('selY').addEventListener('change', (e) => {
+    if (state.selectedIdxs.length === 1) {
+        pushUndo();
+        state.blocks[state.selectedIdxs[0]].y = parseInt(e.target.value) || 0;
+        render();
+    }
+});
+document.getElementById('selGroup').addEventListener('change', (e) => {
+    if (state.selectedIdxs.length > 0 && e.target.value) {
+        pushUndo();
+        state.selectedIdxs.forEach(idx => state.blocks[idx].group = e.target.value);
+        render();
+        updateQuickGroups();
+    }
+});
+document.getElementById('selBidx').addEventListener('change', (e) => {
+    if (state.selectedIdxs.length === 1) {
+        state.blocks[state.selectedIdxs[0]].bidx = parseInt(e.target.value) || 0;
+        render();
+    }
+});
+
+// ═══════════════════════════════════════════════
+// Block List
+// ═══════════════════════════════════════════════
+
+function updateBlockList() {
+    const list = document.getElementById('blockList');
+    list.innerHTML = state.blocks.map((b, i) => {
+        const color = getGroupColor(b.group);
+        const sel = state.selectedIdxs.includes(i) ? 'selected' : '';
+        return `<div class="block-list-item ${sel}" data-idx="${i}">
+            <span class="color-dot" style="background:${color}"></span>
+            <span>#${i}</span>
+            <span style="color:#888;">G:${b.group}</span>
+            <span style="color:#666;font-size:10px;">(${Math.round(b.x)}, ${Math.round(b.y)})</span>
+        </div>`;
+    }).join('');
+
+    list.querySelectorAll('.block-list-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            const idx = parseInt(item.dataset.idx);
+            if (e.shiftKey || e.ctrlKey || e.metaKey) {
+                if (state.selectedIdxs.includes(idx)) selectBlocks(state.selectedIdxs.filter(id => id !== idx));
+                else selectBlocks([...state.selectedIdxs, idx]);
+            } else {
+                selectBlocks([idx]);
+            }
+            render();
+        });
+    });
+}
+
+// ═══════════════════════════════════════════════
+// Add / Delete
+// ═══════════════════════════════════════════════
+
+document.getElementById('btnAdd').addEventListener('click', () => {
+    pushUndo();
+    const existingGroups = [...new Set(state.blocks.map(b => b.group))];
+    const group = existingGroups.length > 0 ? existingGroups[existingGroups.length - 1] : 'A';
+    const newBidx = state.blocks.length;
+    const actualOw = getActualObstacleW();
+    state.blocks.push({
+        x: snapToGrid(state.gameWidth / 2 - actualOw / 2, state.gameWidth, true),
+        y: snapToGrid(state.gameHeight / 2 - actualOw / 2, state.gameHeight, false),
+        group: group,
+        bidx: newBidx
+    });
+    selectBlocks([state.blocks.length - 1]);
+    render();
+});
+
+document.getElementById('btnDelete').addEventListener('click', () => {
+    if (state.selectedIdxs.length === 0) return;
+    pushUndo();
+    const toDelete = [...state.selectedIdxs].sort((a,b) => b - a);
+    toDelete.forEach(idx => state.blocks.splice(idx, 1));
+    selectBlocks([]);
+    render();
+});
+
+// ═══════════════════════════════════════════════
+// Undo
+// ═══════════════════════════════════════════════
+
+function pushUndo() {
+    state.undoStack.push(JSON.stringify(state.blocks));
+    if (state.undoStack.length > 50) state.undoStack.shift();
+}
+
+document.getElementById('btnUndo').addEventListener('click', () => {
+    if (state.undoStack.length === 0) return;
+    state.blocks = JSON.parse(state.undoStack.pop());
+    selectBlocks([]);
+    render();
+});
+
+// Rotate all blocks 90° clockwise around game area center
+document.getElementById('btnRotate90').addEventListener('click', () => {
+    if (state.blocks.length === 0) return;
+    pushUndo();
+    const actualOw = getActualObstacleW();
+    // For a square game area (W==H), 90° CW: (x, y) → (gameH - y - blockSize, x)
+    // For non-square: (x, y) → (gameH - y - blockSize, x) and swap gameWidth/gameHeight
+    const gw = state.gameWidth;
+    const gh = state.gameHeight;
+    for (const b of state.blocks) {
+        const newX = gh - b.y - actualOw;
+        const newY = b.x;
+        b.x = newX;
+        b.y = newY;
+    }
+    // If game area is not square, swap dimensions
+    if (gw !== gh) {
+        state.gameWidth = gh;
+        state.gameHeight = gw;
+        document.getElementById('cfgWidth').value = state.gameWidth;
+        document.getElementById('cfgHeight').value = state.gameHeight;
+    }
+    selectBlocks([]);
+    resizeCanvas();
+});
+
+// Keyboard shortcut
+document.addEventListener('keydown', (e) => {
+    const isInput = document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'TEXTAREA';
+
+    if (e.key === 'z' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        document.getElementById('btnUndo').click();
+    }
+    
+    if (!isInput) {
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+            document.getElementById('btnDelete').click();
+        }
+        
+        
+        // Arrow keys micro-adjustment
+        if (state.selectedIdxs.length > 0 && e.key.startsWith('Arrow')) {
+            e.preventDefault(); // prevent scrolling
+            if (!e.repeat) pushUndo(); // Only save history on initial press, not hold
+            
+            const step = e.shiftKey ? 10 : 1;
+            const actualOw = getActualObstacleW();
+            
+            state.selectedIdxs.forEach(idx => {
+                const b = state.blocks[idx];
+                if (e.key === 'ArrowUp') b.y -= step;
+                if (e.key === 'ArrowDown') b.y += step;
+                if (e.key === 'ArrowLeft') b.x -= step;
+                if (e.key === 'ArrowRight') b.x += step;
+                
+                // Clamp
+                b.x = Math.max(0, Math.min(state.gameWidth - actualOw, b.x));
+                b.y = Math.max(0, Math.min(state.gameHeight - actualOw, b.y));
+            });
+            
+            updateSelectedPanel();
+            render();
+        }
+    }
+});
+
+// ═══════════════════════════════════════════════
+// Preset Layouts
+// ═══════════════════════════════════════════════
+
+function generatePreset(type) {
+    const gw = state.gameWidth;
+    const gh = state.gameHeight;
+    const ow = getActualObstacleW();
+    const blocks = [];
+
+    if (type === 'default') {
+        const cx = gw / 2 - ow / 2;
+        const cy = gh / 2 - ow / 2;
+        
+        const snapX0 = snapToGrid(0, gw, true);
+        const snapXGwOw = snapToGrid(gw - ow, gw, true);
+        const snapXCx = snapToGrid(cx, gw, true);
+
+        const snapY0 = snapToGrid(0, gh, false);
+        const snapYGhOw = snapToGrid(gh - ow, gh, false);
+        const snapYCy = snapToGrid(cy, gh, false);
+
+        blocks.push(
+            // Top-left corner
+            { x: snapX0, y: snapY0, group: 'A', bidx: 0 },
+            // Top center edge
+            { x: snapXCx, y: snapY0, group: 'B', bidx: 1 },
+            // Top-right corner cluster
+            { x: snapXGwOw - ow, y: snapY0, group: 'C', bidx: 2 },
+            { x: snapXGwOw, y: snapY0, group: 'C', bidx: 3 },
+            { x: snapXGwOw, y: snapY0 + ow, group: 'C', bidx: 4 },
+            // Right center edge
+            { x: snapXGwOw, y: snapYCy, group: 'D', bidx: 5 },
+            // Bottom-right corner
+            { x: snapXGwOw, y: snapYGhOw, group: 'E', bidx: 6 },
+            // Bottom center edge
+            { x: snapXCx, y: snapYGhOw - ow, group: 'F', bidx: 7 },
+            { x: snapXCx, y: snapYGhOw, group: 'F', bidx: 8 },
+            // Bottom-left corner
+            { x: snapX0, y: snapYGhOw, group: 'G', bidx: 9 },
+            // Left center edge cluster
+            { x: snapX0, y: snapYCy + ow, group: 'H', bidx: 10 },
+            { x: snapX0, y: snapYCy, group: 'H', bidx: 11 },
+            { x: snapX0, y: snapYCy - ow, group: 'H', bidx: 12 },
+            { x: snapX0 + ow, y: snapYCy, group: 'H', bidx: 13 }
+        );
+    } else if (type === 'corners4') {
+        // 4 corners (1 block each) + 4 edge centers (1 block each) = 8 blocks, 8 groups
+        const xR = gw - ow;
+        const yB = gh - ow;
+        const cx = gw / 2 - ow / 2;
+        const cy = gh / 2 - ow / 2;
+        blocks.push(
+            // Corners (single block each)
+            { x: 0, y: 0, group: 'A', bidx: 0 },
+            { x: xR, y: 0, group: 'B', bidx: 1 },
+            { x: 0, y: yB, group: 'C', bidx: 2 },
+            { x: xR, y: yB, group: 'D', bidx: 3 },
+            // Edge centers (single block each)
+            { x: cx, y: 0, group: 'E', bidx: 4 },
+            { x: xR, y: cy, group: 'F', bidx: 5 },
+            { x: cx, y: yB, group: 'G', bidx: 6 },
+            { x: 0, y: cy, group: 'H', bidx: 7 }
+        );
+    } else if (type === 'edges') {
+        // 4 corners (2 blocks each) + 4 edge centers (1 block each) = 12 blocks, 8 groups
+        const xR = gw - ow;
+        const yB = gh - ow;
+        const cx = gw / 2 - ow / 2;
+        const cy = gh / 2 - ow / 2;
+        blocks.push(
+            // Top-left corner (2 blocks, horizontal)
+            { x: 0, y: 0, group: 'A', bidx: 0 },
+            { x: ow, y: 0, group: 'A', bidx: 1 },
+            // Top-right corner (2 blocks, horizontal)
+            { x: xR - ow, y: 0, group: 'B', bidx: 2 },
+            { x: xR, y: 0, group: 'B', bidx: 3 },
+            // Bottom-left corner (2 blocks, horizontal)
+            { x: 0, y: yB, group: 'C', bidx: 4 },
+            { x: ow, y: yB, group: 'C', bidx: 5 },
+            // Bottom-right corner (2 blocks, horizontal)
+            { x: xR - ow, y: yB, group: 'D', bidx: 6 },
+            { x: xR, y: yB, group: 'D', bidx: 7 },
+            // Edge centers (single block each)
+            { x: cx, y: 0, group: 'E', bidx: 8 },
+            { x: xR, y: cy, group: 'F', bidx: 9 },
+            { x: cx, y: yB, group: 'G', bidx: 10 },
+            { x: 0, y: cy, group: 'H', bidx: 11 }
+        );
+    } else if (type === 'diamond') {
+        // 4 corners (3 blocks L-shape) + 4 edge centers (1 block) = 16 blocks, 8 groups
+        const xR = gw - ow;
+        const yB = gh - ow;
+        const cx = gw / 2 - ow / 2;
+        const cy = gh / 2 - ow / 2;
+        blocks.push(
+            // Top-left corner (L-shape: 3 blocks)
+            { x: 0, y: 0, group: 'A', bidx: 0 },
+            { x: ow, y: 0, group: 'A', bidx: 1 },
+            { x: 0, y: ow, group: 'A', bidx: 2 },
+            // Top-right corner (L-shape: 3 blocks)
+            { x: xR, y: 0, group: 'B', bidx: 3 },
+            { x: xR - ow, y: 0, group: 'B', bidx: 4 },
+            { x: xR, y: ow, group: 'B', bidx: 5 },
+            // Bottom-left corner (L-shape: 3 blocks)
+            { x: 0, y: yB, group: 'C', bidx: 6 },
+            { x: ow, y: yB, group: 'C', bidx: 7 },
+            { x: 0, y: yB - ow, group: 'C', bidx: 8 },
+            // Bottom-right corner (L-shape: 3 blocks)
+            { x: xR, y: yB, group: 'D', bidx: 9 },
+            { x: xR - ow, y: yB, group: 'D', bidx: 10 },
+            { x: xR, y: yB - ow, group: 'D', bidx: 11 },
+            // Edge centers (single block each)
+            { x: cx, y: 0, group: 'E', bidx: 12 },
+            { x: xR, y: cy, group: 'F', bidx: 13 },
+            { x: cx, y: yB, group: 'G', bidx: 14 },
+            { x: 0, y: cy, group: 'H', bidx: 15 }
+        );
+    } else if (type === 'circle8') {
+        const n = 8;
+        const radius = Math.min(gw, gh) * 0.35;
+        const cx2 = gw / 2, cy2 = gh / 2;
+        const groups8 = ['A','B','C','D','E','F','G','H'];
+        for (let i = 0; i < n; i++) {
+            const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+            blocks.push({
+                x: snapToGrid(cx2 + radius * Math.cos(angle) - ow / 2, gw, true),
+                y: snapToGrid(cy2 + radius * Math.sin(angle) - ow / 2, gh, false),
+                group: groups8[i],
+                bidx: i
+            });
+        }
+    } else if (type === 'circle12') {
+        const n = 12;
+        const radius = Math.min(gw, gh) * 0.38;
+        const cx2 = gw / 2, cy2 = gh / 2;
+        const groups12 = ['A','B','C','D','E','F','G','H','I','J','K','L'];
+        for (let i = 0; i < n; i++) {
+            const angle = (i / n) * Math.PI * 2 - Math.PI / 2;
+            blocks.push({
+                x: snapToGrid(cx2 + radius * Math.cos(angle) - ow / 2, gw, true),
+                y: snapToGrid(cy2 + radius * Math.sin(angle) - ow / 2, gh, false),
+                group: groups12[i],
+                bidx: i
+            });
+        }
+    }
+
+    return blocks;
+}
+
+document.getElementById('presetSelect').addEventListener('change', (e) => {
+    const type = e.target.value;
+    if (!type) return;
+    pushUndo();
+    state.blocks = generatePreset(type);
+    selectBlocks([]);
+    render();
+    showToast(`已加载预设: ${e.target.options[e.target.selectedIndex].text}`);
+    e.target.value = '';
+});
+
+// ═══════════════════════════════════════════════
+// JSON Import / Export
+// ═══════════════════════════════════════════════
+
+/**
+ * Import a systemConfig object into the editor state.
+ * @param {object} configObj - systemConfig object with obstacles array
+ * @param {boolean} silent - if true, don't show toast
+ * @returns {boolean} success
+ */
+function importConfig(configObj, silent = false) {
+    try {
+        if (!configObj || typeof configObj !== 'object') {
+            if (!silent) showToast('Invalid config object');
+            return false;
+        }
+
+        let obstaclesArr;
+        if (Array.isArray(configObj)) {
+            obstaclesArr = configObj;
+            configObj = null;
+        } else if (configObj.obstacles) {
+            obstaclesArr = configObj.obstacles;
+        } else {
+            if (!silent) showToast('Config missing obstacles array');
+            return false;
+        }
+
+        pushUndo();
+
+        // Apply system config fields if present
+        if (configObj) {
+            const cfgFields = [
+                ['gameWidth', 'cfgWidth', parseInt],
+                ['gameHeight', 'cfgHeight', parseInt],
+                ['obstacleW', 'cfgObstW', parseInt],
+                ['paddingTop', 'cfgPaddingTop', parseInt],
+                ['paddingBottom', 'cfgPaddingBottom', parseInt],
+                ['offsetX', 'cfgOffsetX', parseInt],
+                ['meterScale', 'cfgMeterScale', parseFloat],
+                ['obstacleScale', 'cfgObstacleScale', parseFloat],
+                ['contentPadding', 'cfgContentPadding', parseInt],
+                ['contentPaddingOffsetX', 'cfgContentPaddingOffsetX', parseInt],
+                ['contentPaddingOffsetY', 'cfgContentPaddingOffsetY', parseInt],
+                ['monstersAreaWidth', 'cfgMonstersAreaWidth', parseInt],
+                ['monstersAreaHeight', 'cfgMonstersAreaHeight', parseInt],
+                ['monstersAreaOffsetX', 'cfgMonstersAreaOffsetX', parseInt],
+                ['gameScreen', 'cfgGameScreen', parseInt],
+                ['scoreScreen', 'cfgScoreScreen', parseInt],
+                ['uiRotation', 'cfgUiRotation', parseInt],
+            ];
+            for (const [key, inputId, parser] of cfgFields) {
+                if (configObj[key] !== undefined) {
+                    state[key] = parser(configObj[key]);
+                    const el = document.getElementById(inputId);
+                    if (el) el.value = configObj[key];
+                }
+            }
+        }
+
+        // Evaluate expressions to get pixel values
+        const gw = state.gameWidth;
+        const gh = state.gameHeight;
+        const ow = getActualObstacleW();
+
+        state.blocks = obstaclesArr.map((item, i) => {
+            let x = item.x, y = item.y;
+            if (typeof x === 'string') {
+                x = safeEval(x, { gameWidth: gw, gameHeight: gh, obstacleW: ow });
+            }
+            if (typeof y === 'string') {
+                y = safeEval(y, { gameWidth: gw, gameHeight: gh, obstacleW: ow });
+            }
+            return {
+                x: typeof x === 'number' ? x : 0,
+                y: typeof y === 'number' ? y : 0,
+                group: item.group || DEFAULT_GROUPS[i % DEFAULT_GROUPS.length],
+                bidx: item.bidx !== undefined ? item.bidx : i
+            };
+        });
+
+        selectBlocks([]);
+        resizeCanvas();
+        return true;
+    } catch (e) {
+        if (!silent) showToast(`Import failed: ${e.message}`);
+        return false;
+    }
+}
+
+document.getElementById('btnImport').addEventListener('click', () => {
+    const text = document.getElementById('jsonArea').value.trim();
+    if (!text) { showToast('Please paste JSON'); return; }
+    try {
+        const parsed = JSON.parse(text);
+        if (importConfig(parsed)) {
+            showToast(`Import OK: ${state.blocks.length} blocks`);
+        }
+    } catch (e) {
+        showToast(`Import failed: ${e.message}`);
+    }
+});
+
+function safeEval(expr, vars) {
+    let result = expr;
+    for (const [key, val] of Object.entries(vars)) {
+        result = result.replace(new RegExp(key, 'g'), val.toString());
+    }
+    try {
+        return Function(`"use strict"; return (${result})`)();
+    } catch { return 0; }
+}
+
+document.getElementById('btnExport').addEventListener('click', () => {
+    const json = exportJSON();
+    document.getElementById('jsonArea').value = json;
+    showToast('已导出 JSON');
+});
+
+document.getElementById('btnCopy').addEventListener('click', () => {
+    const json = document.getElementById('jsonArea').value || exportJSON();
+    navigator.clipboard.writeText(json).then(() => {
+        showToast('已复制到剪贴板');
+    }).catch(() => {
+        showToast('复制失败');
+    });
+});
+
+// Apply to Game (with confirmation)
+document.getElementById('btnApplyToGame').addEventListener('click', () => {
+    document.getElementById('confirmModal').style.display = 'flex';
+});
+document.getElementById('modalCancel').addEventListener('click', () => {
+    document.getElementById('confirmModal').style.display = 'none';
+});
+document.getElementById('modalConfirm').addEventListener('click', async () => {
+    document.getElementById('confirmModal').style.display = 'none';
+    const json = exportJSON();
+    if (!window.electronAPI || !window.electronAPI.updateSystemConfig) {
+        showToast('Not running in Electron');
+        return;
+    }
+    const result = await window.electronAPI.updateSystemConfig(json);
+    if (result.success) {
+        showToast(tt('editor-apply-success', 'Config saved! Restart game to apply.'));
+    } else {
+        showToast(tt('editor-apply-fail', 'Save failed: ') + result.error);
+    }
+});
+
+function exportJSON() {
+    const gw = state.gameWidth;
+    const gh = state.gameHeight;
+    const ow = getActualObstacleW(); // obstacleW * meterScale * obstacleScale
+
+    const obstacles = state.blocks.map(b => {
+        const xExpr = toExpression(b.x, gw, 'gameWidth', ow);
+        const yExpr = toExpression(b.y, gh, 'gameHeight', ow);
+        return { x: xExpr, y: yExpr, group: b.group, bidx: b.bidx };
+    });
+
+    const config = {
+        gameWidth: state.gameWidth,
+        gameHeight: state.gameHeight,
+        obstacleW: state.obstacleW,
+        paddingTop: state.paddingTop,
+        paddingBottom: state.paddingBottom,
+        offsetX: state.offsetX,
+        meterScale: state.meterScale,
+        obstacleScale: state.obstacleScale,
+        contentPadding: state.contentPadding,
+        contentPaddingOffsetX: state.contentPaddingOffsetX,
+        contentPaddingOffsetY: state.contentPaddingOffsetY,
+        monstersAreaWidth: state.monstersAreaWidth,
+        monstersAreaHeight: state.monstersAreaHeight,
+        monstersAreaOffsetX: state.monstersAreaOffsetX,
+        gameScreen: state.gameScreen,
+        scoreScreen: state.scoreScreen,
+        uiRotation: state.uiRotation,
+        obstacles: obstacles
+    };
+
+    return JSON.stringify(config, null, 2);
+}
+
+/**
+ * Convert a pixel coordinate to a safe expression string.
+ * Always uses variable names (gameWidth, gameHeight, obstacleW).
+ * Chooses the best anchor based on position in the game area:
+ *   - Top/Left half → prefer origin-based (obstacleW, 2*obstacleW)
+ *   - Bottom/Right half → prefer edge-based (gameHeight-obstacleW)
+ *   - Near center → prefer center-based (gameWidth/2-obstacleW/2)
+ */
+function toExpression(px, total, varName, ow) {
+    if (Math.abs(px) < 1) return '0';
+    if (Math.abs(px - total) < 1) return varName;
+
+    const tol = Math.max(2, ow * 0.05);
+    const looseTol = ow * 0.15; // wider tolerance for candidate ranking
+
+    // Format N*obstacleW compact string
+    function fmtOw(n) {
+        if (n === 1) return 'obstacleW';
+        if (n === 0.5) return 'obstacleW/2';
+        if (Number.isInteger(n)) return `${n}*obstacleW`;
+        // Decimal (including half-steps like 1.5, 2.5)
+        const r = Math.round(n * 100) / 100;
+        return `${r}*obstacleW`;
+    }
+
+    // Try to match distance as clean N (int or half-step), returns {n, err} or null
+    function tryClean(dist, tolerance) {
+        if (Math.abs(dist) < 1) return null;
+        const absDist = Math.abs(dist);
+        // Integer multiple
+        const n = Math.round(absDist / ow);
+        const errInt = Math.abs(absDist - n * ow);
+        if (n > 0 && errInt < tolerance) return { n, err: errInt };
+        // Half-step
+        const nh = Math.round(absDist / ow * 2) / 2;
+        const errHalf = Math.abs(absDist - nh * ow);
+        if (nh > 0 && nh % 1 === 0.5 && errHalf < tolerance) return { n: nh, err: errHalf };
+        return null;
+    }
+
+    // Collect all candidates: { expr, err, priority }
+    // Lower priority number = preferred
+    const candidates = [];
+    const inUpperHalf = px <= total / 2;
+
+    // From origin
+    const originMatch = tryClean(px, looseTol);
+    if (originMatch) {
+        candidates.push({
+            expr: fmtOw(originMatch.n),
+            err: originMatch.err,
+            priority: inUpperHalf ? 0 : 2, // prefer in upper half
+            n: originMatch.n
+        });
+    }
+
+    // From far edge
+    const edgeDist = total - px;
+    const edgeMatch = tryClean(edgeDist, looseTol);
+    if (edgeMatch) {
+        candidates.push({
+            expr: `${varName}-${fmtOw(edgeMatch.n)}`,
+            err: edgeMatch.err,
+            priority: inUpperHalf ? 2 : 0, // prefer in lower half
+            n: edgeMatch.n
+        });
+    }
+
+    // Center-based
+    const fromCenter = px - total / 2;
+    if (Math.abs(fromCenter) < tol) {
+        candidates.push({ expr: `${varName}/2`, err: Math.abs(fromCenter), priority: 1, n: 0 });
+    } else {
+        const centerMatch = tryClean(Math.abs(fromCenter), looseTol);
+        if (centerMatch) {
+            const owStr = fmtOw(centerMatch.n);
+            candidates.push({
+                expr: fromCenter > 0 ? `${varName}/2+${owStr}` : `${varName}/2-${owStr}`,
+                err: centerMatch.err,
+                priority: 1, // middle priority
+                n: centerMatch.n
+            });
+        }
+    }
+
+    // Pick best candidate: first by accuracy, then by simplicity
+    if (candidates.length > 0) {
+        // Filter: only candidates within loose tolerance
+        const valid = candidates.filter(c => c.err < looseTol);
+        if (valid.length > 0) {
+            valid.sort((a, b) => {
+                // First: prefer tighter tolerance matches
+                const aClean = a.err < tol ? 0 : 1;
+                const bClean = b.err < tol ? 0 : 1;
+                if (aClean !== bClean) return aClean - bClean;
+                // Then: prefer smallest error for best round-trip accuracy
+                if (Math.abs(a.err - b.err) > 0.01) return a.err - b.err;
+                // Then: simpler expression (smaller N)
+                return a.n - b.n;
+            });
+            return valid[0].expr;
+        }
+    }
+
+    // Fallback: fractional obstacleW from best anchor
+    const distFromEnd = total - px;
+    const distFromCenter = Math.abs(fromCenter);
+
+    if (px <= distFromEnd && px <= distFromCenter) {
+        return fmtOw(Math.round((px / ow) * 100) / 100);
+    } else if (distFromEnd <= px && distFromEnd <= distFromCenter) {
+        return `${varName}-${fmtOw(Math.round((distFromEnd / ow) * 100) / 100)}`;
+    } else {
+        const r = Math.round((distFromCenter / ow) * 100) / 100;
+        if (fromCenter > 0) return `${varName}/2+${fmtOw(r)}`;
+        else return `${varName}/2-${fmtOw(r)}`;
+    }
+}
+
+// ═══════════════════════════════════════════════
+// System Config Inputs
+// ═══════════════════════════════════════════════
+
+// Fields that affect canvas rendering
+document.getElementById('cfgWidth').addEventListener('change', (e) => {
+    state.gameWidth = parseInt(e.target.value) || 960;
+    resizeCanvas();
+});
+document.getElementById('cfgHeight').addEventListener('change', (e) => {
+    state.gameHeight = parseInt(e.target.value) || 960;
+    resizeCanvas();
+});
+document.getElementById('cfgObstW').addEventListener('change', (e) => {
+    state.obstacleW = parseInt(e.target.value) || 30;
+    resizeCanvas();
+});
+document.getElementById('cfgMeterScale').addEventListener('change', (e) => {
+    state.meterScale = parseFloat(e.target.value) || 3.88;
+    resizeCanvas();
+});
+document.getElementById('cfgObstacleScale').addEventListener('change', (e) => {
+    state.obstacleScale = parseFloat(e.target.value) || 0.98;
+    resizeCanvas();
+});
+
+// Fields that are config-only (no canvas impact)
+const configOnlyFields = [
+    ['cfgPaddingTop', 'paddingTop', parseInt],
+    ['cfgPaddingBottom', 'paddingBottom', parseInt],
+    ['cfgOffsetX', 'offsetX', parseInt],
+    ['cfgContentPadding', 'contentPadding', parseInt],
+    ['cfgContentPaddingOffsetX', 'contentPaddingOffsetX', parseInt],
+    ['cfgContentPaddingOffsetY', 'contentPaddingOffsetY', parseInt],
+    ['cfgMonstersAreaWidth', 'monstersAreaWidth', parseInt],
+    ['cfgMonstersAreaHeight', 'monstersAreaHeight', parseInt],
+    ['cfgMonstersAreaOffsetX', 'monstersAreaOffsetX', parseInt],
+    ['cfgGameScreen', 'gameScreen', parseInt],
+    ['cfgScoreScreen', 'scoreScreen', parseInt],
+    ['cfgUiRotation', 'uiRotation', parseInt],
+];
+for (const [inputId, stateKey, parser] of configOnlyFields) {
+    document.getElementById(inputId).addEventListener('change', (e) => {
+        state[stateKey] = parser(e.target.value) || 0;
+    });
+}
+
+document.getElementById('cfgToggle').addEventListener('click', () => {
+    const toggle = document.getElementById('cfgToggle');
+    const content = document.getElementById('cfgMore');
+    toggle.classList.toggle('open');
+    content.classList.toggle('open');
+});
+
+document.getElementById('snapToggle').addEventListener('change', (e) => {
+    state.snapEnabled = e.target.checked;
+});
+
+document.getElementById('previewGridToggle').addEventListener('change', (e) => {
+    showPreviewGrid = e.target.checked;
+    render();
+});
+document.getElementById('previewDebugToggle').addEventListener('change', (e) => {
+    showPreviewDebug = e.target.checked;
+    render();
+});
+document.getElementById('previewEventToggle').addEventListener('change', (e) => {
+    setEventMode(e.target.checked);
+});
+
+// ═══════════════════════════════════════════════
+// Toast
+// ═══════════════════════════════════════════════
+
+function showToast(msg) {
+    const el = document.getElementById('toast');
+    el.textContent = msg;
+    el.classList.add('show');
+    clearTimeout(el._timer);
+    el._timer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ═══════════════════════════════════════════════
+// Fullscreen
+// ═══════════════════════════════════════════════
+
+document.getElementById('btnFullscreen').addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+        isGamePreviewMode = true;
+        document.documentElement.requestFullscreen().catch(err => {
+            isGamePreviewMode = false;
+            showToast(`全屏失败: ${err.message}`);
+        });
+    } else {
+        document.exitFullscreen();
+    }
+});
+
+document.getElementById('btnFullscreenExit').addEventListener('click', () => {
+    if (document.fullscreenElement) {
+        document.exitFullscreen();
+    }
+});
+
+document.addEventListener('fullscreenchange', () => {
+    const btn = document.getElementById('btnFullscreen');
+    if (document.fullscreenElement) {
+        btn.textContent = '✕ 退出全屏';
+        btn.title = '退出全屏';
+        document.body.classList.add('fullscreen-mode');
+    } else {
+        isGamePreviewMode = false;
+        btn.textContent = '⛶ 全屏';
+        btn.title = '切换全屏';
+        document.body.classList.remove('fullscreen-mode');
+    }
+    // Recalculate canvas size after fullscreen change (panel visibility changed)
+    setTimeout(resizeCanvas, 100);
+});
+
+// ═══════════════════════════════════════════════
+// Init
+// ═══════════════════════════════════════════════
+
+function autoLoadConfig() {
+    if (window._pendingSystemConfig) {
+        const cfg = window._pendingSystemConfig;
+        window._pendingSystemConfig = null;
+        try {
+            if (cfg.obstacles && Array.isArray(cfg.obstacles)) {
+                importConfig(cfg, true);
+                console.log('Auto-loaded game config:', state.blocks.length, 'blocks');
+            } else {
+                console.warn('Game config has no obstacles array, skipping auto-load');
+            }
+        } catch (e) {
+            console.warn('Auto-load config failed:', e.message);
+        }
+    }
+}
+
+resizeCanvas();
+render();
+// Try auto-load (config may have arrived before or after this point)
+autoLoadConfig();
+
+</script>
+</body>
+</html>
