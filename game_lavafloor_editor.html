@@ -396,6 +396,135 @@
         .modal-btns button:hover { background: #3a3a5e; }
         .modal-btns button.danger { background: #8b2020; border-color: #cc3333; }
         .modal-btns button.danger:hover { background: #aa3030; }
+
+        /* Help Modal */
+        .help-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0,0,0,0.7);
+            z-index: 3000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            backdrop-filter: blur(6px);
+        }
+        .help-box {
+            background: #1a1a2e;
+            border: 1px solid rgba(100,100,200,0.3);
+            border-radius: 14px;
+            padding: 0;
+            width: 700px;
+            max-width: 90vw;
+            max-height: 85vh;
+            display: flex;
+            flex-direction: column;
+            box-shadow: 0 12px 48px rgba(0,0,0,0.6);
+            overflow: hidden;
+        }
+        .help-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 24px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            flex-shrink: 0;
+        }
+        .help-header h2 {
+            color: #aaccff;
+            font-size: 17px;
+            margin: 0;
+        }
+        .help-header .help-lang-toggle {
+            display: flex;
+            gap: 4px;
+        }
+        .help-header .help-lang-toggle button {
+            padding: 4px 12px;
+            border: 1px solid #444;
+            border-radius: 4px;
+            background: #2a2a4a;
+            color: #aaa;
+            cursor: pointer;
+            font-size: 12px;
+            transition: all 0.15s;
+        }
+        .help-header .help-lang-toggle button.active {
+            background: #4444aa;
+            border-color: #6666cc;
+            color: #fff;
+        }
+        .help-close-btn {
+            width: 28px;
+            height: 28px;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 50%;
+            background: transparent;
+            color: #888;
+            cursor: pointer;
+            font-size: 16px;
+            line-height: 28px;
+            text-align: center;
+            transition: all 0.2s;
+            flex-shrink: 0;
+            margin-left: 12px;
+        }
+        .help-close-btn:hover {
+            background: rgba(255,60,60,0.2);
+            color: #fff;
+        }
+        .help-body {
+            padding: 20px 24px;
+            overflow-y: auto;
+            flex: 1;
+            color: #ccc;
+            font-size: 13px;
+            line-height: 1.8;
+        }
+        .help-body h3 {
+            color: #88aaee;
+            font-size: 14px;
+            margin: 18px 0 8px 0;
+            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(100,100,200,0.15);
+        }
+        .help-body h3:first-child { margin-top: 0; }
+        .help-body table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 8px 0 12px 0;
+            font-size: 12px;
+        }
+        .help-body th {
+            background: rgba(60,60,120,0.3);
+            color: #aaccff;
+            text-align: left;
+            padding: 6px 10px;
+            border: 1px solid rgba(255,255,255,0.08);
+        }
+        .help-body td {
+            padding: 5px 10px;
+            border: 1px solid rgba(255,255,255,0.06);
+            color: #bbb;
+        }
+        .help-body kbd {
+            display: inline-block;
+            padding: 1px 6px;
+            border: 1px solid #555;
+            border-radius: 3px;
+            background: #2a2a4a;
+            color: #ddd;
+            font-family: monospace;
+            font-size: 11px;
+        }
+        .help-body ul { padding-left: 18px; margin: 4px 0; }
+        .help-body li { margin: 3px 0; }
+        .help-body code {
+            background: rgba(100,100,200,0.15);
+            padding: 1px 5px;
+            border-radius: 3px;
+            color: #aaffaa;
+            font-size: 11px;
+        }
     </style>
 </head>
 <body>
@@ -423,6 +552,7 @@
         <input type="checkbox" id="snapToggle" checked style="accent-color:#6666cc;">
         <div class="sep"></div>
         <button id="btnEventMode" class="event-mode-btn" t-key="editor-event-mode" title="Toggle event mode">🎮 Event Mode</button>
+        <button id="btnHelp" title="Help" style="margin-left:auto;">❓</button>
         <button id="btnFullscreen" class="fullscreen-btn" t-key="editor-fullscreen" title="Fullscreen">⛶ Fullscreen</button>
     </div>
     <div class="canvas-wrapper">
@@ -584,6 +714,23 @@
             <button id="modalCancel" t-key="common_cancel">Cancel</button>
             <button id="modalConfirm" class="danger" t-key="editor-apply-confirm">Confirm Apply</button>
         </div>
+    </div>
+</div>
+
+<!-- Help Modal -->
+<div class="help-overlay" id="helpModal" style="display:none;">
+    <div class="help-box">
+        <div class="help-header">
+            <h2 id="helpTitle">Help</h2>
+            <div style="display:flex;align-items:center;">
+                <div class="help-lang-toggle">
+                    <button id="helpLangEn" class="active">EN</button>
+                    <button id="helpLangZh">中文</button>
+                </div>
+                <button class="help-close-btn" id="helpClose">×</button>
+            </div>
+        </div>
+        <div class="help-body" id="helpBody"></div>
     </div>
 </div>
 
@@ -1180,18 +1327,18 @@ function setEventMode(enabled) {
     if (previewToggle) previewToggle.checked = enabled;
     if (enabled) {
         btn.classList.add('active');
-        btn.textContent = '🎮 响应事件模式 [ON]';
+        btn.textContent = '🎮 Event Mode [ON]';
         wrapper.classList.add('event-mode');
         selectBlocks([]);
-        showToast('响应事件模式已开启 — 点击 Block 触发激活效果');
+        showToast('Event Mode ON — Click blocks to trigger activation');
         startEventAnimLoop();
     } else {
         btn.classList.remove('active');
-        btn.textContent = '🎮 响应事件模式';
+        btn.textContent = '🎮 Event Mode';
         wrapper.classList.remove('event-mode');
         activeEvents.clear();
         if (animFrameId) { cancelAnimationFrame(animFrameId); animFrameId = null; }
-        showToast('响应事件模式已关闭');
+        showToast('Event Mode OFF');
         render();
     }
 }
@@ -1352,7 +1499,7 @@ function renderEventMode() {
     const groups = [...new Set(state.blocks.map(b => b.group))];
     document.getElementById('statBlocks').textContent = `Blocks: ${state.blocks.length}`;
     document.getElementById('statGroups').textContent = `Groups: ${groups.length} (${groups.sort().join(', ')})`;
-    document.getElementById('statSelected').textContent = '🎮 响应事件模式';
+    document.getElementById('statSelected').textContent = '🎮 Event Mode';
 }
 
 // ═══════════════════════════════════════════════
@@ -2363,6 +2510,215 @@ if (state.blocks.length === 0) {
     state.blocks = generatePreset('default');
 }
 render();
+
+// ═══════════════════════════════════════════════
+// Help Modal
+// ═══════════════════════════════════════════════
+
+const HELP_CONTENT = {
+    en: {
+        title: 'Obstacles Editor — Help',
+        html: `
+<h3>Overview</h3>
+<p>This editor lets you visually design the obstacle (block) layout for the <strong>CyFlameFloor</strong> lava-floor game. Blocks are interactive floor tiles that detect player steps. The editor outputs a JSON configuration that the game engine consumes.</p>
+
+<h3>Canvas Operations</h3>
+<table>
+<tr><th>Action</th><th>How</th></tr>
+<tr><td>Select a block</td><td>Click on it</td></tr>
+<tr><td>Multi-select</td><td>Hold <kbd>Shift</kbd> / <kbd>Cmd</kbd> and click</td></tr>
+<tr><td>Deselect all</td><td>Click on empty area</td></tr>
+<tr><td>Move block(s)</td><td>Drag selected blocks</td></tr>
+<tr><td>Fine-tune position</td><td><kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd> Arrow keys (1px step)</td></tr>
+<tr><td>Fast move</td><td><kbd>Shift</kbd> + Arrow keys (10px step)</td></tr>
+</table>
+<p><strong>Note:</strong> Blocks cannot be moved into the red dashed <em>Monsters Area</em> in the center. They will be automatically pushed to the nearest edge outside.</p>
+
+<h3>Toolbar Buttons</h3>
+<table>
+<tr><th>Button</th><th>Description</th></tr>
+<tr><td><strong>Add</strong></td><td>Add a new block at the center (auto-avoids monsters area)</td></tr>
+<tr><td><strong>Delete</strong></td><td>Remove selected block(s)</td></tr>
+<tr><td><strong>Preset Layout</strong></td><td>Load a predefined layout (Default, Simple, Standard, Full, Circle)</td></tr>
+<tr><td><strong>Undo</strong></td><td>Undo the last operation (up to 50 steps)</td></tr>
+<tr><td><strong>Rotate 90°</strong></td><td>Rotate all blocks 90° clockwise around the center</td></tr>
+<tr><td><strong>Grid Snap</strong></td><td>Toggle snapping to the obstacle grid</td></tr>
+<tr><td><strong>Event Mode</strong></td><td>Test reactive block animations (click blocks to trigger)</td></tr>
+<tr><td><strong>Fullscreen</strong></td><td>Fullscreen preview with game-accurate Scale.FIT rendering</td></tr>
+</table>
+
+<h3>Keyboard Shortcuts</h3>
+<table>
+<tr><th>Key</th><th>Action</th></tr>
+<tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Z</kbd></td><td>Undo</td></tr>
+<tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>Delete selected blocks</td></tr>
+<tr><td><kbd>Arrow Keys</kbd></td><td>Move selected blocks 1px</td></tr>
+<tr><td><kbd>Shift</kbd> + <kbd>Arrow Keys</kbd></td><td>Move selected blocks 10px</td></tr>
+<tr><td><kbd>ESC</kbd></td><td>Exit fullscreen</td></tr>
+</table>
+
+<h3>Right Panel — System Config</h3>
+<table>
+<tr><th>Parameter</th><th>Description</th></tr>
+<tr><td><code>gameWidth / gameHeight</code></td><td>Game area dimensions in pixels (defines the coordinate space)</td></tr>
+<tr><td><code>obstacleW</code></td><td>Base obstacle size before scaling</td></tr>
+<tr><td><code>meterScale</code></td><td>Pixels-per-meter multiplier</td></tr>
+<tr><td><code>obstacleScale</code></td><td>Additional obstacle size multiplier</td></tr>
+<tr><td><code>paddingTop / paddingBottom</code></td><td>Screen padding for game display (pixels)</td></tr>
+<tr><td><code>offsetX</code></td><td>Horizontal offset of the game area center</td></tr>
+<tr><td><code>contentPadding</code></td><td>Safe area inset (yellow border in preview)</td></tr>
+<tr><td><code>contentPadOfsX / Y</code></td><td>Content padding offset adjustment</td></tr>
+<tr><td><code>monstersAreaW / H</code></td><td>Central exclusion zone dimensions (red dashed border)</td></tr>
+<tr><td><code>monstersOfsX / Y</code></td><td>Offset of the monsters area from center</td></tr>
+<tr><td><code>gameScreen / scoreScreen</code></td><td>Display screen assignment indices</td></tr>
+<tr><td><code>uiRotation</code></td><td>UI rotation angle (degrees)</td></tr>
+</table>
+
+<h3>Selected Block Properties</h3>
+<ul>
+<li><strong>X / Y</strong> — Block position in game pixels (editable)</li>
+<li><strong>Group</strong> — Logical group letter (A–Z). Blocks in the same group share behavior</li>
+<li><strong>bidx</strong> — Hardware button index (maps to physical sensor)</li>
+<li><strong>Quick Set Group</strong> — One-click group assignment buttons</li>
+</ul>
+
+<h3>JSON Config</h3>
+<p>The JSON textarea at the bottom-right is <strong>live-synced</strong>:</p>
+<ul>
+<li>Any change you make on the canvas instantly updates the JSON</li>
+<li>Any edit you make to the JSON instantly updates the canvas (400ms debounce)</li>
+<li><strong>Download JSON</strong> — Save as a <code>.json</code> file</li>
+<li><strong>Copy</strong> — Copy JSON to clipboard</li>
+<li><strong>Apply to Game</strong> (Electron only) — Push config to the running game</li>
+</ul>
+<p>Obstacle coordinates use expressions like <code>gameWidth-obstacleW</code> so layouts adapt to different game dimensions.</p>
+
+<h3>Fullscreen Preview</h3>
+<p>Simulates the actual game display with <strong>Scale.FIT</strong> rendering. In preview mode:</p>
+<ul>
+<li><strong>Red border</strong> — Game area outer edge</li>
+<li><strong>Yellow border</strong> — Content safe area (contentPadding)</li>
+<li><strong>Green border</strong> — Monsters area zone</li>
+<li>Toggle Grid, Debug Borders, and Event Mode via floating controls (top-left)</li>
+</ul>
+`
+    },
+    zh: {
+        title: '障碍物编辑器 — 使用帮助',
+        html: `
+<h3>概述</h3>
+<p>本编辑器用于可视化设计 <strong>CyFlameFloor</strong> 岩浆地板游戏的障碍物（方块）布局。方块是可检测玩家踩踏的互动地板砖。编辑器输出 JSON 配置供游戏引擎使用。</p>
+
+<h3>画布操作</h3>
+<table>
+<tr><th>操作</th><th>方法</th></tr>
+<tr><td>选中方块</td><td>点击方块</td></tr>
+<tr><td>多选</td><td>按住 <kbd>Shift</kbd> / <kbd>Cmd</kbd> 点击</td></tr>
+<tr><td>取消选择</td><td>点击空白区域</td></tr>
+<tr><td>移动方块</td><td>拖拽已选中的方块</td></tr>
+<tr><td>微调位置</td><td><kbd>←</kbd> <kbd>↑</kbd> <kbd>→</kbd> <kbd>↓</kbd> 方向键（1px 步进）</td></tr>
+<tr><td>快速移动</td><td><kbd>Shift</kbd> + 方向键（10px 步进）</td></tr>
+</table>
+<p><strong>注意：</strong>方块无法移入中央红色虚线标注的<em>怪物区域</em>，会被自动推到区域外最近的边缘。</p>
+
+<h3>工具栏按钮</h3>
+<table>
+<tr><th>按钮</th><th>说明</th></tr>
+<tr><td><strong>Add（添加）</strong></td><td>在中心添加新方块（自动避开怪物区域）</td></tr>
+<tr><td><strong>Delete（删除）</strong></td><td>删除选中的方块</td></tr>
+<tr><td><strong>Preset Layout（预设布局）</strong></td><td>加载预定义布局（默认、简易、标准、完整、圆形）</td></tr>
+<tr><td><strong>Undo（撤销）</strong></td><td>撤销上一步操作（最多 50 步）</td></tr>
+<tr><td><strong>Rotate 90°（旋转）</strong></td><td>将所有方块绕中心顺时针旋转 90°</td></tr>
+<tr><td><strong>Grid Snap（网格吸附）</strong></td><td>切换网格吸附功能</td></tr>
+<tr><td><strong>Event Mode（事件模式）</strong></td><td>测试方块响应动画效果（点击方块触发）</td></tr>
+<tr><td><strong>Fullscreen（全屏）</strong></td><td>全屏预览，模拟游戏实际的 Scale.FIT 渲染</td></tr>
+</table>
+
+<h3>键盘快捷键</h3>
+<table>
+<tr><th>按键</th><th>功能</th></tr>
+<tr><td><kbd>Ctrl</kbd>/<kbd>Cmd</kbd> + <kbd>Z</kbd></td><td>撤销</td></tr>
+<tr><td><kbd>Delete</kbd> / <kbd>Backspace</kbd></td><td>删除选中方块</td></tr>
+<tr><td><kbd>方向键</kbd></td><td>移动选中方块 1px</td></tr>
+<tr><td><kbd>Shift</kbd> + <kbd>方向键</kbd></td><td>移动选中方块 10px</td></tr>
+<tr><td><kbd>ESC</kbd></td><td>退出全屏</td></tr>
+</table>
+
+<h3>右侧面板 — 系统配置</h3>
+<table>
+<tr><th>参数</th><th>说明</th></tr>
+<tr><td><code>gameWidth / gameHeight</code></td><td>游戏区域尺寸（像素），定义坐标空间</td></tr>
+<tr><td><code>obstacleW</code></td><td>障碍物基础尺寸（缩放前）</td></tr>
+<tr><td><code>meterScale</code></td><td>每米像素数乘数</td></tr>
+<tr><td><code>obstacleScale</code></td><td>障碍物额外缩放系数</td></tr>
+<tr><td><code>paddingTop / paddingBottom</code></td><td>游戏显示的上下边距（像素）</td></tr>
+<tr><td><code>offsetX</code></td><td>游戏区域水平偏移</td></tr>
+<tr><td><code>contentPadding</code></td><td>安全区域内边距（全屏预览中的黄色边框）</td></tr>
+<tr><td><code>contentPadOfsX / Y</code></td><td>安全区域偏移微调</td></tr>
+<tr><td><code>monstersAreaW / H</code></td><td>中央禁区尺寸（红色虚线框）</td></tr>
+<tr><td><code>monstersOfsX / Y</code></td><td>禁区相对中心的偏移</td></tr>
+<tr><td><code>gameScreen / scoreScreen</code></td><td>显示屏分配索引</td></tr>
+<tr><td><code>uiRotation</code></td><td>UI 旋转角度（度）</td></tr>
+</table>
+
+<h3>选中方块属性</h3>
+<ul>
+<li><strong>X / Y</strong> — 方块在游戏坐标系中的位置（可编辑）</li>
+<li><strong>Group（分组）</strong> — 逻辑分组字母（A–Z），同组方块共享行为</li>
+<li><strong>bidx</strong> — 硬件按钮索引（对应物理传感器编号）</li>
+<li><strong>Quick Set Group</strong> — 一键设置分组的快捷按钮</li>
+</ul>
+
+<h3>JSON 配置</h3>
+<p>右下角的 JSON 文本框<strong>实时同步</strong>：</p>
+<ul>
+<li>画布上的任何修改会即时更新 JSON</li>
+<li>手动编辑 JSON 内容也会即时更新画布（400ms 防抖）</li>
+<li><strong>Download JSON</strong> — 下载为 <code>.json</code> 文件</li>
+<li><strong>Copy</strong> — 复制 JSON 到剪贴板</li>
+<li><strong>Apply to Game</strong>（仅 Electron）— 推送配置到运行中的游戏</li>
+</ul>
+<p>障碍物坐标使用表达式（如 <code>gameWidth-obstacleW</code>），使布局可以适配不同游戏尺寸。</p>
+
+<h3>全屏预览</h3>
+<p>模拟游戏实际的 <strong>Scale.FIT</strong> 显示效果。预览模式中：</p>
+<ul>
+<li><strong>红色边框</strong> — 游戏区域外边界</li>
+<li><strong>黄色边框</strong> — 内容安全区域（contentPadding）</li>
+<li><strong>绿色边框</strong> — 怪物区域</li>
+<li>通过左上角浮动控件切换网格、调试边框、事件模式</li>
+</ul>
+`
+    }
+};
+
+let helpLang = 'en';
+
+function showHelp(lang) {
+    helpLang = lang || helpLang;
+    const content = HELP_CONTENT[helpLang];
+    document.getElementById('helpTitle').textContent = content.title;
+    document.getElementById('helpBody').innerHTML = content.html;
+    document.getElementById('helpLangEn').classList.toggle('active', helpLang === 'en');
+    document.getElementById('helpLangZh').classList.toggle('active', helpLang === 'zh');
+    document.getElementById('helpModal').style.display = 'flex';
+}
+
+document.getElementById('btnHelp').addEventListener('click', () => {
+    // Auto-detect language from appConfigs
+    const locale = (appConfigs.locale || 'en').toLowerCase();
+    showHelp(locale.startsWith('zh') ? 'zh' : 'en');
+});
+document.getElementById('helpClose').addEventListener('click', () => {
+    document.getElementById('helpModal').style.display = 'none';
+});
+document.getElementById('helpModal').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) {
+        document.getElementById('helpModal').style.display = 'none';
+    }
+});
+document.getElementById('helpLangEn').addEventListener('click', () => showHelp('en'));
+document.getElementById('helpLangZh').addEventListener('click', () => showHelp('zh'));
 
 </script>
 </body>
