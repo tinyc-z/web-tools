@@ -504,7 +504,11 @@
             </div>
             <div class="field-row">
                 <label>monstersOfsX</label>
-                <input type="number" id="cfgMonstersAreaOffsetX" value="40">
+                <input type="number" id="cfgMonstersAreaOffsetX" value="0">
+            </div>
+            <div class="field-row">
+                <label>monstersOfsY</label>
+                <input type="number" id="cfgMonstersAreaOffsetY" value="0">
             </div>
             <div class="field-row">
                 <label>gameScreen</label>
@@ -556,21 +560,18 @@
         <div class="block-list" id="blockList"></div>
     </div>
 
-    <!-- JSON Import / Export -->
+    <!-- JSON Live Sync -->
     <div class="panel-section" style="flex:1;">
-        <h3 t-key="editor-json-io">📦 JSON Import/Export</h3>
-        <textarea class="json-area" id="jsonArea" placeholder='Paste systemConfig JSON...'></textarea>
+        <h3 t-key="editor-json-io">📦 JSON Config</h3>
+        <textarea class="json-area" id="jsonArea" placeholder='Edit JSON here — changes apply live...'></textarea>
         <div class="btn-row">
-            <button id="btnImport" t-key="editor-import">📥 Import</button>
-            <button id="btnExport" class="primary" t-key="editor-export">📤 Export</button>
-        </div>
-        <div class="btn-row" style="margin-top:4px;">
-            <button id="btnCopy" class="primary" t-key="editor-copy">📋 Copy to Clipboard</button>
+            <button id="btnExport" class="primary" t-key="editor-download">📥 Download JSON</button>
+            <button id="btnCopy" class="primary" t-key="editor-copy">📋 Copy</button>
         </div>
         <div class="btn-row" id="applyToGameRow" style="margin-top:8px; display:none;">
             <button id="btnApplyToGame" class="danger" t-key="editor-apply-game">⚠️ Apply to Game</button>
         </div>
-        <p class="info-text" t-key="editor-json-hint">Import/Export full systemConfig (with obstacles)</p>
+        <p class="info-text" t-key="editor-json-hint">JSON auto-syncs with editor. Edit either side.</p>
     </div>
 </div>
 
@@ -661,7 +662,8 @@ let state = {
     contentPaddingOffsetY: 0,
     monstersAreaWidth: 160,
     monstersAreaHeight: 160,
-    monstersAreaOffsetX: 40,
+    monstersAreaOffsetX: 0,
+    monstersAreaOffsetY: 0,
     gameScreen: 1,
     scoreScreen: 2,
     uiRotation: 0,
@@ -780,6 +782,59 @@ function getActualObstacleW() {
     return state.obstacleW * state.meterScale * Math.abs(state.obstacleScale); // use abs just in case
 }
 
+/**
+ * Returns the monsters area bounding box in game coordinates.
+ * { x, y, w, h } — top-left corner + size
+ */
+function getMonstersAreaBounds() {
+    const mw = state.monstersAreaWidth || 0;
+    const mh = state.monstersAreaHeight || 0;
+    if (mw <= 0 || mh <= 0) return null;
+    const cx = state.gameWidth / 2 + (state.monstersAreaOffsetX || 0);
+    const cy = state.gameHeight / 2 + (state.monstersAreaOffsetY || 0);
+    return { x: cx - mw / 2, y: cy - mh / 2, w: mw, h: mh };
+}
+
+/**
+ * If the block at (bx, by) with size blockW overlaps the monsters area,
+ * push it to the nearest edge outside. Returns { x, y }.
+ */
+function clampOutOfMonstersArea(bx, by, blockW) {
+    const ma = getMonstersAreaBounds();
+    if (!ma) return { x: bx, y: by };
+
+    // Check AABB overlap: block rect vs monsters rect
+    const bx2 = bx + blockW;
+    const by2 = by + blockW;
+    const mx2 = ma.x + ma.w;
+    const my2 = ma.y + ma.h;
+
+    if (bx2 <= ma.x || bx >= mx2 || by2 <= ma.y || by >= my2) {
+        return { x: bx, y: by }; // no overlap
+    }
+
+    // Overlap detected — find the smallest push to move block out
+    const pushLeft  = mx2 - bx;      // push block left  → block.right = ma.left  → newX = ma.x - blockW
+    const pushRight = bx2 - ma.x;    // push block right → block.left  = ma.right → newX = mx2
+    const pushUp    = my2 - by;      // push block up    → block.bottom= ma.top   → newY = ma.y - blockW
+    const pushDown  = by2 - ma.y;    // push block down  → block.top   = ma.bottom→ newY = my2
+
+    // Pick the direction with the smallest displacement
+    const candidates = [
+        { dist: pushLeft,  nx: ma.x - blockW, ny: by },
+        { dist: pushRight, nx: mx2,            ny: by },
+        { dist: pushUp,    nx: bx,             ny: ma.y - blockW },
+        { dist: pushDown,  nx: bx,             ny: my2 },
+    ];
+
+    let best = candidates[0];
+    for (let i = 1; i < candidates.length; i++) {
+        if (candidates[i].dist < best.dist) best = candidates[i];
+    }
+
+    return { x: best.nx, y: best.ny };
+}
+
 // ═══════════════════════════════════════════════
 // Group Color Mapping
 // ═══════════════════════════════════════════════
@@ -800,6 +855,146 @@ function getGroupColorDirect(group) {
 // ═══════════════════════════════════════════════
 // Rendering
 // ═══════════════════════════════════════════════
+
+// ═══════════════════════════════════════════════
+// Projector Icon (top-down, lens facing viewer)
+// ═══════════════════════════════════════════════
+
+function drawProjectorIcon(areaX, areaY, areaW, areaH) {
+    const cx = areaX + areaW / 2;
+    const cy = areaY + areaH / 2;
+
+    // Scale the projector relative to game area (keep it compact)
+    const projSize = Math.min(areaW, areaH) * 0.036;
+    const bodyW = projSize * 1.4;
+    const bodyH = projSize * 1.8;
+
+    ctx.save();
+    ctx.globalAlpha = 0.35;
+
+    // ── Projector body (rounded rectangle, top-down view) ──
+    const bodyX = cx - bodyW / 2;
+    const bodyY = cy - bodyH / 2;
+    const radius = projSize * 0.12;
+
+    // Body shadow
+    ctx.save();
+    ctx.shadowColor = 'rgba(0, 200, 255, 0.3)';
+    ctx.shadowBlur = projSize * 0.4;
+    ctx.shadowOffsetX = 0;
+    ctx.shadowOffsetY = 0;
+
+    // Body fill with gradient
+    const bodyGrad = ctx.createLinearGradient(bodyX, bodyY, bodyX, bodyY + bodyH);
+    bodyGrad.addColorStop(0, '#3a3a4a');
+    bodyGrad.addColorStop(0.5, '#2a2a3a');
+    bodyGrad.addColorStop(1, '#1a1a2a');
+    ctx.fillStyle = bodyGrad;
+    ctx.beginPath();
+    ctx.moveTo(bodyX + radius, bodyY);
+    ctx.lineTo(bodyX + bodyW - radius, bodyY);
+    ctx.quadraticCurveTo(bodyX + bodyW, bodyY, bodyX + bodyW, bodyY + radius);
+    ctx.lineTo(bodyX + bodyW, bodyY + bodyH - radius);
+    ctx.quadraticCurveTo(bodyX + bodyW, bodyY + bodyH, bodyX + bodyW - radius, bodyY + bodyH);
+    ctx.lineTo(bodyX + radius, bodyY + bodyH);
+    ctx.quadraticCurveTo(bodyX, bodyY + bodyH, bodyX, bodyY + bodyH - radius);
+    ctx.lineTo(bodyX, bodyY + radius);
+    ctx.quadraticCurveTo(bodyX, bodyY, bodyX + radius, bodyY);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // Body border
+    ctx.strokeStyle = 'rgba(100, 180, 255, 0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(bodyX + radius, bodyY);
+    ctx.lineTo(bodyX + bodyW - radius, bodyY);
+    ctx.quadraticCurveTo(bodyX + bodyW, bodyY, bodyX + bodyW, bodyY + radius);
+    ctx.lineTo(bodyX + bodyW, bodyY + bodyH - radius);
+    ctx.quadraticCurveTo(bodyX + bodyW, bodyY + bodyH, bodyX + bodyW - radius, bodyY + bodyH);
+    ctx.lineTo(bodyX + radius, bodyY + bodyH);
+    ctx.quadraticCurveTo(bodyX, bodyY + bodyH, bodyX, bodyY + bodyH - radius);
+    ctx.lineTo(bodyX, bodyY + radius);
+    ctx.quadraticCurveTo(bodyX, bodyY, bodyX + radius, bodyY);
+    ctx.closePath();
+    ctx.stroke();
+
+    // ── Lens (concentric circles — the front of the projector facing up) ──
+    const lensR = projSize * 0.38;
+
+    // Lens glow
+    const glowGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, lensR * 1.5);
+    glowGrad.addColorStop(0, 'rgba(0, 200, 255, 0.25)');
+    glowGrad.addColorStop(0.6, 'rgba(0, 150, 255, 0.08)');
+    glowGrad.addColorStop(1, 'rgba(0, 100, 255, 0)');
+    ctx.fillStyle = glowGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, lensR * 1.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Outer lens ring
+    ctx.strokeStyle = 'rgba(100, 200, 255, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(cx, cy, lensR, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Middle lens ring
+    ctx.strokeStyle = 'rgba(80, 180, 255, 0.4)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(cx, cy, lensR * 0.65, 0, Math.PI * 2);
+    ctx.stroke();
+
+    // Inner lens (bright center — the lamp)
+    const lensInnerGrad = ctx.createRadialGradient(cx, cy, 0, cx, cy, lensR * 0.35);
+    lensInnerGrad.addColorStop(0, 'rgba(180, 230, 255, 0.6)');
+    lensInnerGrad.addColorStop(1, 'rgba(60, 160, 255, 0.15)');
+    ctx.fillStyle = lensInnerGrad;
+    ctx.beginPath();
+    ctx.arc(cx, cy, lensR * 0.35, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ── Ventilation grilles (horizontal lines on both sides) ──
+    const grillY1 = cy + bodyH * 0.22;
+    const grillY2 = cy + bodyH * 0.38;
+    const grillCount = 3;
+    const grillSpacing = (grillY2 - grillY1) / (grillCount - 1);
+    ctx.strokeStyle = 'rgba(100, 160, 220, 0.3)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < grillCount; i++) {
+        const gy = grillY1 + i * grillSpacing;
+        // Left side grilles
+        ctx.beginPath();
+        ctx.moveTo(bodyX + bodyW * 0.1, gy);
+        ctx.lineTo(bodyX + bodyW * 0.35, gy);
+        ctx.stroke();
+        // Right side grilles
+        ctx.beginPath();
+        ctx.moveTo(bodyX + bodyW * 0.65, gy);
+        ctx.lineTo(bodyX + bodyW * 0.9, gy);
+        ctx.stroke();
+    }
+
+    // ── Status LED (small dot on front) ──
+    const ledX = cx;
+    const ledY = cy - bodyH * 0.38;
+    ctx.fillStyle = 'rgba(0, 255, 100, 0.6)';
+    ctx.beginPath();
+    ctx.arc(ledX, ledY, projSize * 0.04, 0, Math.PI * 2);
+    ctx.fill();
+
+    // ── Label ──
+    ctx.fillStyle = 'rgba(150, 190, 255, 0.5)';
+    ctx.font = `${Math.max(9, projSize * 0.14)}px sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'top';
+    ctx.fillText('PROJECTOR', cx, bodyY + bodyH + projSize * 0.12);
+
+    ctx.globalAlpha = 1;
+    ctx.restore();
+}
 
 function render() {
     const w = canvas.width, h = canvas.height;
@@ -861,9 +1056,10 @@ function render() {
             const maw = (state.monstersAreaWidth || 0) * canvasScale;
             const mah = (state.monstersAreaHeight || 0) * canvasScale;
             const maOffX = (state.monstersAreaOffsetX || 0) * canvasScale;
+            const maOffY = (state.monstersAreaOffsetY || 0) * canvasScale;
             if (maw > 0 && mah > 0) {
                 const maCenterX = ax + aw / 2 + maOffX;
-                const maCenterY = ay + ah / 2;
+                const maCenterY = ay + ah / 2 + maOffY;
                 ctx.strokeStyle = 'rgba(0,255,0,1)';
                 ctx.lineWidth = 1;
                 ctx.strokeRect(maCenterX - maw / 2, maCenterY - mah / 2, maw, mah);
@@ -888,6 +1084,27 @@ function render() {
         ctx.lineWidth = 2;
         ctx.strokeRect(ax, ay, aw, ah);
 
+        // Red border: monsters area (centered, stroke only)
+        const mawEditor = (state.monstersAreaWidth || 0) * canvasScale;
+        const mahEditor = (state.monstersAreaHeight || 0) * canvasScale;
+        const maOffXEditor = (state.monstersAreaOffsetX || 0) * canvasScale;
+        const maOffYEditor = (state.monstersAreaOffsetY || 0) * canvasScale;
+        if (mawEditor > 0 && mahEditor > 0) {
+            const maCenterXEditor = ax + aw / 2 + maOffXEditor;
+            const maCenterYEditor = ay + ah / 2 + maOffYEditor;
+            ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([6, 4]);
+            ctx.strokeRect(maCenterXEditor - mawEditor / 2, maCenterYEditor - mahEditor / 2, mawEditor, mahEditor);
+            ctx.setLineDash([]);
+            // Label
+            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'left';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText('monstersArea', maCenterXEditor - mawEditor / 2 + 2, maCenterYEditor - mahEditor / 2 - 2);
+        }
+
         // Dimension labels
         ctx.fillStyle = '#555';
         ctx.font = '11px sans-serif';
@@ -899,6 +1116,9 @@ function render() {
         ctx.fillText(`${state.gameHeight}px`, 0, 0);
         ctx.restore();
     }
+
+    // ── Projector icon (top-down view, centered in game area) ──
+    drawProjectorIcon(ax, ay, aw, ah);
 
     // Blocks
     const actualOw = getActualObstacleW();
@@ -938,6 +1158,9 @@ function render() {
     document.getElementById('statBlocks').textContent = `Blocks: ${state.blocks.length}`;
     document.getElementById('statGroups').textContent = `Groups: ${groups.length} (${groups.sort().join(', ')})`;
     document.getElementById('statSelected').textContent = state.selectedIdxs.length > 0 ? `Selected: ${state.selectedIdxs.length}` : 'Selected: —';
+
+    // Live-sync JSON textarea
+    if (typeof syncJsonArea === 'function') syncJsonArea();
 }
 
 // ═══════════════════════════════════════════════
@@ -1194,6 +1417,10 @@ canvas.addEventListener('mousemove', (e) => {
         let newY = snapToGrid(gy - dy, state.gameHeight, false);
         newX = Math.max(0, Math.min(state.gameWidth - actualOw, newX));
         newY = Math.max(0, Math.min(state.gameHeight - actualOw, newY));
+        // Prevent entering monsters area
+        const clamped = clampOutOfMonstersArea(newX, newY, actualOw);
+        newX = Math.max(0, Math.min(state.gameWidth - actualOw, clamped.x));
+        newY = Math.max(0, Math.min(state.gameHeight - actualOw, clamped.y));
         state.blocks[idx].x = newX;
         state.blocks[idx].y = newY;
     });
@@ -1286,14 +1513,26 @@ function updateQuickGroups() {
 document.getElementById('selX').addEventListener('change', (e) => {
     if (state.selectedIdxs.length === 1) {
         pushUndo();
-        state.blocks[state.selectedIdxs[0]].x = parseInt(e.target.value) || 0;
+        const b = state.blocks[state.selectedIdxs[0]];
+        let newX = parseInt(e.target.value) || 0;
+        const actualOw = getActualObstacleW();
+        const clamped = clampOutOfMonstersArea(newX, b.y, actualOw);
+        b.x = Math.max(0, Math.min(state.gameWidth - actualOw, clamped.x));
+        b.y = Math.max(0, Math.min(state.gameHeight - actualOw, clamped.y));
+        e.target.value = Math.round(b.x);
         render();
     }
 });
 document.getElementById('selY').addEventListener('change', (e) => {
     if (state.selectedIdxs.length === 1) {
         pushUndo();
-        state.blocks[state.selectedIdxs[0]].y = parseInt(e.target.value) || 0;
+        const b = state.blocks[state.selectedIdxs[0]];
+        let newY = parseInt(e.target.value) || 0;
+        const actualOw = getActualObstacleW();
+        const clamped = clampOutOfMonstersArea(b.x, newY, actualOw);
+        b.x = Math.max(0, Math.min(state.gameWidth - actualOw, clamped.x));
+        b.y = Math.max(0, Math.min(state.gameHeight - actualOw, clamped.y));
+        e.target.value = Math.round(b.y);
         render();
     }
 });
@@ -1353,9 +1592,15 @@ document.getElementById('btnAdd').addEventListener('click', () => {
     const group = existingGroups.length > 0 ? existingGroups[existingGroups.length - 1] : 'A';
     const newBidx = state.blocks.length;
     const actualOw = getActualObstacleW();
+    let addX = snapToGrid(state.gameWidth / 2 - actualOw / 2, state.gameWidth, true);
+    let addY = snapToGrid(state.gameHeight / 2 - actualOw / 2, state.gameHeight, false);
+    // Push out of monsters area if overlapping
+    const addClamped = clampOutOfMonstersArea(addX, addY, actualOw);
+    addX = Math.max(0, Math.min(state.gameWidth - actualOw, addClamped.x));
+    addY = Math.max(0, Math.min(state.gameHeight - actualOw, addClamped.y));
     state.blocks.push({
-        x: snapToGrid(state.gameWidth / 2 - actualOw / 2, state.gameWidth, true),
-        y: snapToGrid(state.gameHeight / 2 - actualOw / 2, state.gameHeight, false),
+        x: addX,
+        y: addY,
         group: group,
         bidx: newBidx
     });
@@ -1444,7 +1689,12 @@ document.addEventListener('keydown', (e) => {
                 if (e.key === 'ArrowLeft') b.x -= step;
                 if (e.key === 'ArrowRight') b.x += step;
                 
-                // Clamp
+                // Prevent entering monsters area
+                const clamped = clampOutOfMonstersArea(b.x, b.y, actualOw);
+                b.x = clamped.x;
+                b.y = clamped.y;
+
+                // Clamp to game bounds
                 b.x = Math.max(0, Math.min(state.gameWidth - actualOw, b.x));
                 b.y = Math.max(0, Math.min(state.gameHeight - actualOw, b.y));
             });
@@ -1621,6 +1871,16 @@ document.getElementById('presetSelect').addEventListener('change', (e) => {
 // JSON Import / Export
 // ═══════════════════════════════════════════════
 
+function safeEval(expr, vars) {
+    let result = expr;
+    for (const [key, val] of Object.entries(vars)) {
+        result = result.replace(new RegExp(key, 'g'), val.toString());
+    }
+    try {
+        return Function(`"use strict"; return (${result})`)();
+    } catch { return 0; }
+}
+
 /**
  * Import a systemConfig object into the editor state.
  * @param {object} configObj - systemConfig object with obstacles array
@@ -1664,6 +1924,7 @@ function importConfig(configObj, silent = false) {
                 ['monstersAreaWidth', 'cfgMonstersAreaWidth', parseInt],
                 ['monstersAreaHeight', 'cfgMonstersAreaHeight', parseInt],
                 ['monstersAreaOffsetX', 'cfgMonstersAreaOffsetX', parseInt],
+                ['monstersAreaOffsetY', 'cfgMonstersAreaOffsetY', parseInt],
                 ['gameScreen', 'cfgGameScreen', parseInt],
                 ['scoreScreen', 'cfgScoreScreen', parseInt],
                 ['uiRotation', 'cfgUiRotation', parseInt],
@@ -1707,37 +1968,66 @@ function importConfig(configObj, silent = false) {
     }
 }
 
-document.getElementById('btnImport').addEventListener('click', () => {
-    const text = document.getElementById('jsonArea').value.trim();
-    if (!text) { showToast('Please paste JSON'); return; }
-    try {
-        const parsed = JSON.parse(text);
-        if (importConfig(parsed)) {
-            showToast(`Import OK: ${state.blocks.length} blocks`);
-        }
-    } catch (e) {
-        showToast(`Import failed: ${e.message}`);
-    }
-});
+// ── Live JSON Sync ──
 
-function safeEval(expr, vars) {
-    let result = expr;
-    for (const [key, val] of Object.entries(vars)) {
-        result = result.replace(new RegExp(key, 'g'), val.toString());
-    }
-    try {
-        return Function(`"use strict"; return (${result})`)();
-    } catch { return 0; }
+// Flag to prevent circular updates (textarea input → import → render → sync → textarea)
+let _jsonSyncLock = false;
+
+/**
+ * Sync the current editor state into the JSON textarea.
+ * Called automatically from render().
+ */
+function syncJsonArea() {
+    if (_jsonSyncLock) return;
+    const area = document.getElementById('jsonArea');
+    // Only auto-update if the textarea is NOT currently focused (user might be typing)
+    if (document.activeElement === area) return;
+    area.value = exportJSON();
 }
 
+/**
+ * Live import: debounced handler for textarea edits.
+ */
+let _jsonInputTimer = null;
+document.getElementById('jsonArea').addEventListener('input', () => {
+    clearTimeout(_jsonInputTimer);
+    _jsonInputTimer = setTimeout(() => {
+        const text = document.getElementById('jsonArea').value.trim();
+        if (!text) return;
+        try {
+            const parsed = JSON.parse(text);
+            _jsonSyncLock = true;
+            importConfig(parsed, true);
+            _jsonSyncLock = false;
+        } catch (e) {
+            // Ignore parse errors while user is still typing
+        }
+    }, 400);
+});
+
+// When textarea loses focus, re-sync to ensure clean formatted JSON
+document.getElementById('jsonArea').addEventListener('blur', () => {
+    _jsonSyncLock = false;
+    syncJsonArea();
+});
+
+// Download JSON file
 document.getElementById('btnExport').addEventListener('click', () => {
     const json = exportJSON();
-    document.getElementById('jsonArea').value = json;
-    showToast('已导出 JSON');
+    const blob = new Blob([json], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `obstacles_config_${Date.now()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    showToast('JSON file downloaded');
 });
 
 document.getElementById('btnCopy').addEventListener('click', () => {
-    const json = document.getElementById('jsonArea').value || exportJSON();
+    const json = exportJSON();
     navigator.clipboard.writeText(json).then(() => {
         showToast('已复制到剪贴板');
     }).catch(() => {
@@ -1793,6 +2083,7 @@ function exportJSON() {
         monstersAreaWidth: state.monstersAreaWidth,
         monstersAreaHeight: state.monstersAreaHeight,
         monstersAreaOffsetX: state.monstersAreaOffsetX,
+        monstersAreaOffsetY: state.monstersAreaOffsetY,
         gameScreen: state.gameScreen,
         scoreScreen: state.scoreScreen,
         uiRotation: state.uiRotation,
@@ -1958,6 +2249,7 @@ const configOnlyFields = [
     ['cfgMonstersAreaWidth', 'monstersAreaWidth', parseInt],
     ['cfgMonstersAreaHeight', 'monstersAreaHeight', parseInt],
     ['cfgMonstersAreaOffsetX', 'monstersAreaOffsetX', parseInt],
+    ['cfgMonstersAreaOffsetY', 'monstersAreaOffsetY', parseInt],
     ['cfgGameScreen', 'gameScreen', parseInt],
     ['cfgScoreScreen', 'scoreScreen', parseInt],
     ['cfgUiRotation', 'uiRotation', parseInt],
@@ -1965,6 +2257,7 @@ const configOnlyFields = [
 for (const [inputId, stateKey, parser] of configOnlyFields) {
     document.getElementById(inputId).addEventListener('change', (e) => {
         state[stateKey] = parser(e.target.value) || 0;
+        render();
     });
 }
 
@@ -2063,9 +2356,13 @@ function autoLoadConfig() {
 }
 
 resizeCanvas();
-render();
-// Try auto-load (config may have arrived before or after this point)
+// Try auto-load from Electron config
 autoLoadConfig();
+// If no config was loaded, start with default preset
+if (state.blocks.length === 0) {
+    state.blocks = generatePreset('default');
+}
+render();
 
 </script>
 </body>
