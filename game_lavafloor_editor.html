@@ -250,6 +250,10 @@
             border-color: rgba(255, 80, 80, 0.5);
             box-shadow: 0 0 16px rgba(255, 60, 60, 0.25) inset;
         }
+        body.fullscreen-mode .canvas-wrapper.event-mode {
+            border-color: transparent;
+            box-shadow: none;
+        }
 
         /* Fullscreen: hide side panel, maximise canvas */
         body.fullscreen-mode .side-panel {
@@ -1226,12 +1230,18 @@ function render() {
             ctx.beginPath(); ctx.moveTo(ax, sy); ctx.lineTo(ax + aw, sy); ctx.stroke();
         }
 
-        // Game area border
-        ctx.strokeStyle = '#444';
-        ctx.lineWidth = 2;
-        ctx.strokeRect(ax, ay, aw, ah);
+        // Game area outer border (same semantic as test_page drawDebugOutLayer)
+        const lineSize = 2;
+        ctx.strokeStyle = 'rgba(255, 0, 0, 1)';
+        ctx.lineWidth = lineSize;
+        ctx.strokeRect(
+            ax + lineSize,
+            ay + lineSize,
+            aw - 2 * lineSize,
+            ah - 2 * lineSize
+        );
 
-        // Red border: monsters area (centered, stroke only)
+        // Monsters area border (centered, stroke only)
         const mawEditor = (state.monstersAreaWidth || 0) * canvasScale;
         const mahEditor = (state.monstersAreaHeight || 0) * canvasScale;
         const maOffXEditor = (state.monstersAreaOffsetX || 0) * canvasScale;
@@ -1239,13 +1249,13 @@ function render() {
         if (mawEditor > 0 && mahEditor > 0) {
             const maCenterXEditor = ax + aw / 2 + maOffXEditor;
             const maCenterYEditor = ay + ah / 2 + maOffYEditor;
-            ctx.strokeStyle = 'rgba(255, 0, 0, 0.8)';
+            ctx.strokeStyle = 'rgba(0, 255, 0, 0.9)';
             ctx.lineWidth = 1.5;
             ctx.setLineDash([6, 4]);
             ctx.strokeRect(maCenterXEditor - mawEditor / 2, maCenterYEditor - mahEditor / 2, mawEditor, mahEditor);
             ctx.setLineDash([]);
             // Label
-            ctx.fillStyle = 'rgba(255, 0, 0, 0.5)';
+            ctx.fillStyle = 'rgba(0, 255, 0, 0.65)';
             ctx.font = '10px sans-serif';
             ctx.textAlign = 'left';
             ctx.textBaseline = 'bottom';
@@ -1318,6 +1328,44 @@ let eventMode = false;
 // activeEvents: Map<blockIdx, {startTime, duration}>
 const activeEvents = new Map();
 let animFrameId = null;
+let stepAudioCtx = null;
+
+function getStepAudioContext() {
+    if (!stepAudioCtx) {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        stepAudioCtx = new Ctx();
+    }
+    if (stepAudioCtx.state === 'suspended') {
+        stepAudioCtx.resume().catch(() => {});
+    }
+    return stepAudioCtx;
+}
+
+function playStepSound(blockIdx = 0) {
+    const audioCtx = getStepAudioContext();
+    if (!audioCtx) return;
+
+    const now = audioCtx.currentTime;
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+
+    // Slight pitch variation by block index for a more natural feel.
+    const baseFreq = 200 + (Math.abs(Number(blockIdx) || 0) % 7) * 16;
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(baseFreq, now);
+    osc.frequency.exponentialRampToValueAtTime(baseFreq * 0.72, now + 0.08);
+
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.12, now + 0.008);
+    gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.11);
+
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+
+    osc.start(now);
+    osc.stop(now + 0.12);
+}
 
 function setEventMode(enabled) {
     eventMode = enabled;
@@ -1359,6 +1407,7 @@ function startEventAnimLoop() {
 
 function triggerBlockEvent(idx) {
     activeEvents.set(idx, { startTime: performance.now(), duration: 600 });
+    playStepSound(idx);
 }
 
 // Hardware signal listener (same as test_page)
@@ -1383,116 +1432,52 @@ if (window.electronAPI) {
 
 function renderEventMode() {
     const now = performance.now();
-    const w = canvas.width, h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-
-    // Background
-    ctx.fillStyle = '#0f0f1e';
-    ctx.fillRect(0, 0, w, h);
-
-    // Game area
-    const [ax, ay] = gameToScreen(0, 0);
-    const aw = state.gameWidth * canvasScale;
-    const ah = state.gameHeight * canvasScale;
-    ctx.fillStyle = '#1a1a2e';
-    ctx.fillRect(ax, ay, aw, ah);
-
-    // Grid lines (subtle)
-    ctx.strokeStyle = 'rgba(255,255,255,0.03)';
-    ctx.lineWidth = 1;
-    const gridGamePx = getActualObstacleW();
-    for (let gx = 0; gx <= state.gameWidth; gx += gridGamePx) {
-        const [sx] = gameToScreen(gx, 0);
-        ctx.beginPath(); ctx.moveTo(sx, ay); ctx.lineTo(sx, ay + ah); ctx.stroke();
-    }
-    for (let gy = 0; gy <= state.gameHeight; gy += gridGamePx) {
-        const [, sy] = gameToScreen(0, gy);
-        ctx.beginPath(); ctx.moveTo(ax, sy); ctx.lineTo(ax + aw, sy); ctx.stroke();
-    }
-
-    ctx.strokeStyle = '#444';
-    ctx.lineWidth = 2;
-    ctx.strokeRect(ax, ay, aw, ah);
+    // Keep base rendering unchanged (red/yellow borders, labels, etc.)
+    render();
 
     const actualOw = getActualObstacleW();
     const blockScreenW = actualOw * canvasScale;
-
     for (let i = 0; i < state.blocks.length; i++) {
+        const ev = activeEvents.get(i);
+        if (!ev) continue;
+
+        const elapsed = now - ev.startTime;
+        if (elapsed >= ev.duration) {
+            activeEvents.delete(i);
+            continue;
+        }
+
+        const raw = elapsed / ev.duration;
+        const t = Math.sin(raw * Math.PI); // 0→1→0
         const b = state.blocks[i];
         const [sx, sy] = gameToScreen(b.x, b.y);
+        const cx = sx + blockScreenW / 2;
+        const cy = sy + blockScreenW / 2;
         const baseColor = getGroupColor(b.group);
 
-        const ev = activeEvents.get(i);
-        let t = 0; // 0 = idle, 1 = peak of activation
-        if (ev) {
-            const elapsed = now - ev.startTime;
-            if (elapsed >= ev.duration) {
-                activeEvents.delete(i);
-            } else {
-                // ease-out curve: rises fast then fades
-                const raw = elapsed / ev.duration;
-                t = Math.sin(raw * Math.PI); // 0→1→0 arc
-            }
-        }
-
-        // Scale the block for "pop" effect
-        const scale = 1 + t * 0.18;
-        const cx = sx + blockScreenW / 2;
-        const cyc = sy + blockScreenW / 2;
-        const sw = blockScreenW * scale;
-
+        // Soft glow pulse around the tile
         ctx.save();
-        ctx.translate(cx, cyc);
-
-        // Glow
-        if (t > 0) {
-            ctx.shadowColor = baseColor;
-            ctx.shadowBlur = 24 * t;
-        }
-
-        // Fill
-        ctx.globalAlpha = 0.6 + t * 0.4;
-        ctx.fillStyle = t > 0 ? '#ffffff' : baseColor;
-        ctx.fillRect(-sw / 2, -sw / 2, sw, sw);
-
-        // Overlay color tint when active
-        if (t > 0) {
-            ctx.globalAlpha = t * 0.6;
-            ctx.fillStyle = baseColor;
-            ctx.fillRect(-sw / 2, -sw / 2, sw, sw);
-        }
-
-        ctx.globalAlpha = 1;
-        ctx.shadowBlur = 0;
-        ctx.strokeStyle = t > 0 ? '#ffffff' : 'rgba(0,0,0,0.5)';
-        ctx.lineWidth = t > 0 ? 2.5 : 1;
-        ctx.strokeRect(-sw / 2, -sw / 2, sw, sw);
-
-        // Label
-        ctx.fillStyle = t > 0.4 ? '#000' : '#000';
-        ctx.font = `bold ${Math.max(10, blockScreenW * 0.3)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(`${i}`, 0, -blockScreenW * 0.12);
-
-        ctx.font = `${Math.max(8, blockScreenW * 0.18)}px sans-serif`;
-        ctx.fillStyle = 'rgba(0,0,0,0.7)';
-        ctx.fillText(`${b.group}`, 0, blockScreenW * 0.2);
-
+        ctx.globalAlpha = 0.12 + t * 0.28;
+        ctx.fillStyle = baseColor;
+        const expand = blockScreenW * (0.08 + t * 0.18);
+        ctx.fillRect(
+            sx - expand / 2,
+            sy - expand / 2,
+            blockScreenW + expand,
+            blockScreenW + expand
+        );
         ctx.restore();
 
         // Ripple ring
-        if (t > 0) {
-            const ringR = (blockScreenW / 2) * (1 + t * 1.2);
-            ctx.save();
-            ctx.globalAlpha = (1 - t) * 0.7;
-            ctx.strokeStyle = baseColor;
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.arc(cx, cyc, ringR, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.restore();
-        }
+        const ringR = (blockScreenW / 2) * (1 + t * 1.2);
+        ctx.save();
+        ctx.globalAlpha = (1 - t) * 0.8;
+        ctx.strokeStyle = baseColor;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(cx, cy, ringR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
     }
 
     // Stats
